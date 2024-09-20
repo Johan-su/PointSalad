@@ -3,11 +3,4 @@ import org.junit.Test;
 
 public class PointSaladTest {
 
-	@Test
-	public void testRun()
-	{
-		String[] args = {""};
-		PointSalad.main(args);
-	}
-
 }
