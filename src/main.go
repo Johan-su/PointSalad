@@ -177,43 +177,52 @@ func displayMarket(s *GameState) {
 
 }
 
-func drawFromTop(p []Card) Card {
-	assert(len(p) > 0)
+func drawFromTop(s *GameState, pile_index int) Card {
+	assert(len(s.piles[pile_index]) > 0)
 	var c Card
-	c := p[len(p) - 1]
-	p[0:len(p) - 1]
+	c := s.piles[pile_index][len(s.piles[pile_index]) - 1]
+	s.piles[pile_index][0:len(p) - 1]
 	return c	
 }
 
-func flipCardsFromPiles(s *GameState) {
-	assert(len(s.piles) == PLAY_PILES_NUM)
+func drawFromBot(s *GameState, pile_index int) Card {
+	assert(len(s.piles[pile_index]) > 0)
+	var c Card
+	c := s.piles[pile_index][0]
+	s.piles[pile_index] := s.piles[pile_index][1:len(s.piles[pile_index])]
+	return c
+}
 
+func getMaxPileIndex(s *GameState) int{
 
-	if len(s.piles[0] == 0) {
-		s.market[0] = drawFromTop(&s.piles[0])
+	int max = len(s.piles[0])
+	int index = 0
 
-	} else {
-		
-		s.market[0] = drawFromBot(&s.piles[0])
+	for i, p := range s.piles {
+		if len(p) > max {
+			max = len(p)
+			index = i
+		}
 	}
-		s.market[1] = drawFromTop(&s.piles[0])
-		max_pile_index := 
-		s.market[0] = drawFromTop(&s.piles[0])
-		s.market[1] = drawFromTop(&s.piles[0])
 
+	return index
+}
 
-	s.market[2] = s.piles[1][len(s.piles[1]) - 1]
-	s.piles[1] = s.piles[1][0:len(s.piles[1]) - 1]
-
-	s.market[3] = s.piles[1][len(s.piles[1]) - 1]
-	s.piles[1] = s.piles[1][0:len(s.piles[1]) - 1]
-
-	s.market[3] = s.piles[2][len(s.piles[2]) - 1]
-	s.piles[2] = s.piles[2][0:len(s.piles[2]) - 1]
-
-	s.market[4] = s.piles[2][len(s.piles[2]) - 1]
-	s.piles[2] = s.piles[2][0:len(s.piles[2]) - 1]
-
+func flipCardsFromPiles(s *GameState) {
+	for y := range s.piles {
+		for x := range 2 {
+			market_pos := y + x * PLAY_PILES_NUM
+			if isNullCard(s.market[market_pos]) {
+				if len(s.piles[y] == 0) {
+					s.market[market_pos] = drawFromTop(s, y)
+			
+				} else {
+					index := getMaxPileIndex(s)
+					s.market[market_pos] = drawFromBot(s, index)
+				}
+			}
+		}
+	}
 }
 
 func main() {
@@ -223,7 +232,6 @@ func main() {
 	}
 	
 	var json_cards JCards
-	
 	
 	err = json.Unmarshal(data, &json_cards)
 	if err != nil {
@@ -235,11 +243,13 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	
+
 	s := createGameState(&json_cards, player_num, bot_num, 0)	
 
 	for true {
+		flipCardsFromPiles(&s)
 		displayMarket(&s)
+		// get decisions from actor
 		s, err := reader.ReadString('\n')
 		str := s[0: len(s) - 2]
 		if err != nil {
@@ -247,6 +257,8 @@ func main() {
 		}
 		_ = str
 
+		// next player
+		s.active_actor += 1
+		s.active_actor %= s.player_num + s.bot_num
 	}
-
 }
