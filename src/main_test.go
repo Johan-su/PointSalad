@@ -6,9 +6,8 @@ import (
 	"encoding/json"
 )
 
-func CorrectVegetableAmount(t *testing.T, json_cards *JCards, actor_num int) {
+func CorrectVegetableAmount(t *testing.T, json_cards *JCards, actor_num int, expected_num_of_vegetable_per_type int) {
 	s := createGameState(json_cards, 0, actor_num, 0)
-
 	
 	vegetable_nums := [VEGETABLE_TYPE_NUM]int{}
 	
@@ -28,7 +27,6 @@ func CorrectVegetableAmount(t *testing.T, json_cards *JCards, actor_num int) {
 		}
 	}
 	
-	expected_num_of_vegetable_per_type := 3 * actor_num
 	for i, vegetable_num := range vegetable_nums {
 		if vegetable_num != expected_num_of_vegetable_per_type {
 			t.Errorf("Expected %d %v got %d", expected_num_of_vegetable_per_type, CardType(i), vegetable_num)
@@ -36,25 +34,43 @@ func CorrectVegetableAmount(t *testing.T, json_cards *JCards, actor_num int) {
 	}
 }
 
-// req3
-func TestCorrectVegetables(t *testing.T) {
+inited := false
+var json_cards JCards
+
+func initJson() {
+	if (inited) {
+		return
+	}
 	data, err := os.ReadFile("../PointSaladManifest.json")
 	if err != nil {
 		log.Fatal(err)
 	}
-	
-	var json_cards JCards
 	
 	
 	err = json.Unmarshal(data, &json_cards)
 	if err != nil {
 		log.Fatal(err)
 	}
-	for i := 2; i <= 6; i += 1 {
-		CorrectVegetableAmount(t, &json_cards, i)
+}
+
+
+// req3
+func TestCorrectVegetables(t *testing.T) {
+	initJson()
+	test_table := []struct{actor_num int, expected_num_of_vegetable_per_type int} {
+		{2, 6},
+		{3, 9},
+		{4, 12},
+		{5, 15},
+		{6, 18},
 	}
+	for _, v := range test_table {
+		CorrectVegetableAmount(t, &json_cards, v.actor_num, v.expected_num_of_vegetable_per_type)
+	}
+}
 
-	
 
+func TestPointCards(t *testing.T) {
+	initJson()
 }
 

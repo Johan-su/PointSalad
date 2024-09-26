@@ -8,18 +8,20 @@ import (
 	"strconv"
 	"encoding/json"
 	"strings"
+	"math"
 	"math/rand"
 	"slices"
+	"unicode"
 )
 
-type CardType int
+type VegType int
 const (
-	PEPPER CardType = iota
-	LETTUCE CardType = iota
-	CARROT CardType = iota
-	CABBAGE CardType = iota
-	ONION CardType = iota
-	TOMATO CardType = iota
+	PEPPER VegType = iota
+	LETTUCE VegType = iota
+	CARROT VegType = iota
+	CABBAGE VegType = iota
+	ONION VegType = iota
+	TOMATO VegType = iota
 	VEGETABLE_TYPE_NUM = iota
 )
 
@@ -53,20 +55,47 @@ type JCards struct {
 	Cards []JCard
 }
 
+type CriteriaType int
+const (
+	MOST CriteriaType = iota
+	FEWEST CriteriaType = iota
+	EVEN_ODD CriteriaType = iota
+	PER CriteriaType = iota
+	SUM CriteriaType = iota
+	MOST_TOTAL CriteriaType = iota
+	FEWEST_TOTAL CriteriaType = iota
+	PER_TYPE_GREATER_THAN_EQ CriteriaType = iota
+	PER_MISSING_TYPE CriteriaType = iota
+	COMPLETE_SET CriteriaType = iota
+	CRITERIA_TYPE_NUM = iota
+)
+
 type Criteria struct {
-	use_veg [VEGETABLE_TYPE_NUM]bool
+	criteria_type CriteriaType
+	//
+	veg_count [VEGETABLE_TYPE_NUM]int
+	// used for single score rules
+	single_score int
+	greater_than_eq_value int
+	// used for even odd rules
+	even_score int
+	odd_score int
+	// used for per rules
+	per_scores [VEGETABLE_TYPE_NUM]int
 }
 
 type Card struct {
 	Id int
-	Vegetable_type CardType
+	Vegetable_type VegType
 }
+
 type ActorData struct {
 	vegetable_num [VEGETABLE_TYPE_NUM]int
 	point_pile []Card
 }
 // actors are players and bots
 type GameState struct {
+	criteria_table []Criteria
 	piles [][]Card
 	market [6]Card
 	actor_data []ActorData
@@ -112,12 +141,131 @@ func getNumPlayerBotConfigInput(reader *bufio.Reader, prompt string, min int, ma
 }
 
 
+
+
+func parseCriteria(s string) Criteria {
+	const (
+		IDENTIFIER = iota
+		EQUAL = iota
+		NUMBER = iota
+		COLON = iota
+		COMMA = iota
+		SLASH = iota
+		PLUS = iota
+		MINUS = iota
+		GREATER = iota
+	)
+	type Token struct {
+		token_type int
+		s string
+	}
+
+	tokens := []Token{}
+
+	func get_token(tokens []Token, pos int) {
+		assert(pos < len(tokens))
+		return tokens[pos]
+	}
+
+	// tokenize the criterias
+	for i := 0; i < len(s); i += 1 {
+		if s[i] == ' ' {
+			continue
+		} else if unicode.Isletter(s[i]) {
+			start := i
+			end := i
+			for unicode.Isletter[i] {
+				i += 1
+				end += 1
+			}
+			
+
+			token := Token{IDENTIFIER, s[start:end + 1]}
+			tokens = append(token, tokens)
+		} else if unicode.IsNumber(s[i])  {
+			start := i
+			end := i
+			for unicode.IsNumber(s[i]) {
+				i += 1
+				end += 1
+			}
+			
+
+			token := Token{NUMBER, s[start:end + 1]}
+			tokens = append(token, tokens)
+		} else if s[i] == '='  {
+			tokens = append(token, Token{EQUAL, s[i:i + 1]})
+		} else if s[i] == ':'  {
+			tokens = append(token, Token{COLON, s[i:i + 1]})
+		} else if s[i] == ','  {
+			tokens = append(token, Token{COMMA, s[i:i + 1]})
+		} else if s[i] == '/'  {
+			tokens = append(token, Token{SLASH, s[i:i + 1]})
+		} else if s[i] == '+'  {
+			tokens = append(token, Token{PLUS, s[i:i + 1]})
+		} else if s[i] == '>' {
+			tokens = append(token, Token{GREATER, s[i:i + 1]})
+		} else {
+			assert(false)
+		}
+	}
+
+	criterias := []Criteria{}
+
+	for i := 0; i < len(tokens); i += 1 {
+		if get_token(tokens, i).token_type == IDENTIFIER {
+			if tokens[i].s == "MOST" {				
+				i += 1
+				if get_token(tokens, i).s == "TOTAL" {
+					i += 1
+					assert(get_token(tokens, i).s == "VEGETABLE")
+					i += 1
+					assert(get_token(tokens, i).token_type == EQUAL)
+					i += 1
+					num_token := get_token(tokens, i)
+					assert(num_token.token_type == NUMBER)
+
+					val, err := strconv.Atoi()
+
+				} else {
+
+				}
+			}
+		} else if token.token_type == NUMBER {
+
+		} else {
+			assert(false)
+		}
+	}
+}
+
+func createCriteriaTable(json_cards *JCards) Criteria[] {
+
+	criteria_table := []Criteria{}
+
+
+	for _, jcard range json_cards.Cards {
+		criteria_table = append(criteria_table, parseCriteria(jcard.criteria.PEPPER))
+		criteria_table = append(criteria_table, parseCriteria(jcard.criteria.LETTUCE))
+		criteria_table = append(criteria_table, parseCriteria(jcard.criteria.CARROT))
+		criteria_table = append(criteria_table, parseCriteria(jcard.criteria.CABBAGE))
+		criteria_table = append(criteria_table, parseCriteria(jcard.criteria.ONION))
+		criteria_table = append(criteria_table, parseCriteria(jcard.criteria.TOMATO))
+	}
+
+
+}
+
 func createGameState(json_cards *JCards, player_num int, bot_num int, seed int64) GameState {
 	actor_num := player_num + bot_num
 	assert(actor_num >= 2 && actor_num <= 6)
 
 	fmt.Printf("seed = %d\n", seed)
 	rand.Seed(seed)
+
+
+
+
 
 	var ids []int
 	for _, jcard := range json_cards.Cards {
@@ -135,7 +283,7 @@ func createGameState(json_cards *JCards, player_num int, bot_num int, seed int64
 		for j := 0; j < per_vegetable_num; j += 1 {
 			card := Card{
 				Id: ids[j], 
-				Vegetable_type: CardType(i), 
+				Vegetable_type: VegType(i), 
 			}
 			deck = append(deck, card)
 
@@ -229,7 +377,7 @@ func displayActorCards(s *GameState) {
 	fmt.Printf("%d current score\n", calculateScore(s, s.active_actor))
 	fmt.Println("--------")
 	for i, num := range s.actor_data[s.active_actor].vegetable_num {
-		fmt.Printf("%d %v\n", num, CardType(i))
+		fmt.Printf("%d %v\n", num, VegType(i))
 	}
 
 	fmt.Println("---- point cards ----")
@@ -362,30 +510,158 @@ func pickCardToChangeToVeg(reader *bufio.Reader, s *GameState) {
 func calculateScore(s *GameState, actor_id int) int {
 	score := 0
 
-	for i, point_card := range s.actor_data[actor_id].point_pile {
+	for _, point_card := range s.actor_data[actor_id].point_pile {
+		_ = point_card	
+		var criteria Criteria
 		
-		
-		if most {
+		switch criteria.criteria_type {
+			case MOST: {
+				is_most := true
+				for j, count := range criteria.veg_count {
+					if count == 0 {
+						continue
+					} 
+					max := s.actor_data[actor_id].vegetable_num[0]
+					max_id := 0
+					for _, actor_data := range s.actor_data {
+						if actor_data.vegetable_num[j] > max {
+							max = actor_data.vegetable_num[j]
+							max_id = j
+						}
+					}
+					if max_id != actor_id {
+						is_most = false
+						break 
+					}
+				}
+				if is_most {
+					score += criteria.single_score
+				}
+			} 
+			case FEWEST: {
+				is_fewest := true
+				for j, count := range criteria.veg_count {
+					if count == 0 {
+						continue
+					} 
+					min := s.actor_data[0].vegetable_num[0]
+					min_id := 0
+					for _, actor_data := range s.actor_data {
+						if actor_data.vegetable_num[j] < min {
+							min = actor_data.vegetable_num[j]
+							min_id = j
+						}
+					}
+					if min_id != actor_id {
+						is_fewest = false
+						break 
+					}
+				}
+				if is_fewest {
+					score += criteria.single_score
+				}
+			}
+			case EVEN_ODD: {
+				for j, count := range criteria.veg_count {
+					if count == 0 {
+						continue
+					}
+					if s.actor_data[actor_id].vegetable_num[VegType(j)] % 2 == 0 {
+						score += criteria.even_score
+					} else {
+						score += criteria.odd_score
+					}
+				}
+			}
+			case PER: {
+				for j, per_value := range criteria.per_scores {
+					score += s.actor_data[actor_id].vegetable_num[j] * per_value
+				}
+			}
+			case SUM: {
+				min := math.MaxInt32
+				for j, count := range criteria.veg_count {
+					if count == 0 {
+						continue
+					} 
+					non_repeated_value := s.actor_data[actor_id].vegetable_num[j] / count
+					if non_repeated_value < min {
+						min = non_repeated_value
+					}
+				}
+				score += min * criteria.single_score
+			}
+			case MOST_TOTAL: {
+				veg_count := 0
+				for _, count := range s.actor_data[actor_id].vegetable_num {
+					veg_count += count
+				}
 
+				is_most  := true
+				for _, actor_data := range s.actor_data {
+					other_veg_count := 0
+					for  _, count := range actor_data.vegetable_num {
+						other_veg_count += count
+					}
+					if other_veg_count >= veg_count {
+						is_most = false
+						break
+					}
+				}
+				if is_most {
+					score += criteria.single_score
+				}
+			}
+			case FEWEST_TOTAL: {
+				veg_count := 0
+				for _, count := range s.actor_data[actor_id].vegetable_num {
+					veg_count += count
+				}
 
-
-		} else if fewest {
-
-		} else if even_odd {
-
-		} else if per {
-
-		} else if sum {
-
-		} else if most_total {
-		} else if fewest_total {
-
-		} else {
-			assert(false)
+				is_fewest := true
+				for _, actor_data := range s.actor_data {
+					other_veg_count := 0
+					for  _, count := range actor_data.vegetable_num {
+						other_veg_count += count
+					}
+					if other_veg_count <= veg_count {
+						is_fewest = false
+						break
+					}
+				}
+				if is_fewest {
+					score += criteria.single_score
+				}
+			}
+			case PER_TYPE_GREATER_THAN_EQ: {
+				for _, count := range s.actor_data[actor_id].vegetable_num {
+					if count >= criteria.greater_than_eq_value {
+						score += criteria.single_score
+					}
+				}
+			}
+			case PER_MISSING_TYPE: {
+				for _, count := range s.actor_data[actor_id].vegetable_num {
+					if count == 0 {
+						score += criteria.single_score
+					}
+				}
+			}
+			case COMPLETE_SET: {
+				min := s.actor_data[actor_id].vegetable_num[0]
+				for _, count := range s.actor_data[actor_id].vegetable_num {
+					if count < min {
+						min = count
+					}
+				}
+				score += criteria.single_score * min
+			} 
+			default: {
+				assert(false)
+			}
 		}
+
 	}
-
-
 
 	return score
 }
