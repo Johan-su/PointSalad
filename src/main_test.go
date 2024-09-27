@@ -72,37 +72,37 @@ func TestCorrectVegetables(t *testing.T) {
 func TestCriteriaParsing(t *testing.T) {
 	initJson()
 
-	test_table := []struct {s string, c Criteria} {
-		{"MOST LETTUCE = 10", Criteria{criteria_type: MOST, veg_count: {0, 1, 0, 0, 0, 0}, single_score: 10}}
-		{"MOST PEPPER = 10", Criteria{criteria_type: MOST, veg_count: {1, 0, 0, 0, 0, 0}, single_score: 10}}
-		{"MOST CABBAGE = 10", Criteria{criteria_type: MOST, veg_count: {0, 0, 0, 1, 0, 0}, single_score: 10}}
-		{"MOST CARROT = 10", Criteria{criteria_type: MOST, veg_count: {0, 0, 1, 0, 0, 0}, single_score: 10}}
-		{"MOST TOMATO = 10", Criteria{criteria_type: MOST, veg_count: {0, 0, 0, 0, 0, 1}, single_score: 10}}
-		{"MOST ONION = 10", Criteria{criteria_type: MOST, veg_count: {0, 0, 0, 0, 1, 0}, single_score: 10}}
-		{"FEWEST LETTUCE = 7", Criteria{criteria_type: FEWEST, veg_count: {0, 1, 0, 0, 0, 0}, single_score: 7}}
-		{"FEWEST PEPPER = 7", Criteria{criteria_type: FEWEST, veg_count: {1, 0, 0, 0, 0, 0}, single_score: 7}}
-		{"FEWEST CABBAGE = 7", Criteria{criteria_type: FEWEST, veg_count: {0, 0, 0, 1, 0, 0}, single_score: 7}}
-		{"FEWEST CARROT = 7", Criteria{criteria_type: FEWEST, veg_count: {0, 0, 1, 0, 0, 0}, single_score: 7}}
-		{"FEWEST TOMATO = 7", Criteria{criteria_type: FEWEST, veg_count: {0, 0, 0, 0, 0, 1}, single_score: 7}}
-		{"FEWEST ONION = 7", Criteria{criteria_type: FEWEST, veg_count: {0, 0, 0, 0, 1, 0}, single_score: 7}}
+	test_table := []struct{criteria_str string, expected Criteria} {
+		{"MOST LETTUCE = 10",      Criteria{criteria_type: MOST, veg_count: {0, 1, 0, 0, 0, 0}, single_score: 10}}
+		{"MOST PEPPER = 10",       Criteria{criteria_type: MOST, veg_count: {1, 0, 0, 0, 0, 0}, single_score: 10}}
+		{"MOST CABBAGE = 10",      Criteria{criteria_type: MOST, veg_count: {0, 0, 0, 1, 0, 0}, single_score: 10}}
+		{"MOST CARROT = 10",       Criteria{criteria_type: MOST, veg_count: {0, 0, 1, 0, 0, 0}, single_score: 10}}
+		{"MOST TOMATO = 10",       Criteria{criteria_type: MOST, veg_count: {0, 0, 0, 0, 0, 1}, single_score: 10}}
+		{"MOST ONION = 10",        Criteria{criteria_type: MOST, veg_count: {0, 0, 0, 0, 1, 0}, single_score: 10}}
+		{"FEWEST LETTUCE = 7",     Criteria{criteria_type: FEWEST, veg_count: {0, 1, 0, 0, 0, 0}, single_score: 7}}
+		{"FEWEST PEPPER = 7",      Criteria{criteria_type: FEWEST, veg_count: {1, 0, 0, 0, 0, 0}, single_score: 7}}
+		{"FEWEST CABBAGE = 7",     Criteria{criteria_type: FEWEST, veg_count: {0, 0, 0, 1, 0, 0}, single_score: 7}}
+		{"FEWEST CARROT = 7",      Criteria{criteria_type: FEWEST, veg_count: {0, 0, 1, 0, 0, 0}, single_score: 7}}
+		{"FEWEST TOMATO = 7",      Criteria{criteria_type: FEWEST, veg_count: {0, 0, 0, 0, 0, 1}, single_score: 7}}
+		{"FEWEST ONION = 7",       Criteria{criteria_type: FEWEST, veg_count: {0, 0, 0, 0, 1, 0}, single_score: 7}}
 		{"LETTUCE: EVEN=7, ODD=3", Criteria{criteria_type: EVEN_ODD, veg_count: {0, 1, 0, 0, 0, 0}, even_score: 7, odd_score: 3}}
-		{"PEPPER: EVEN=7, ODD=3", Criteria{criteria_type: EVEN_ODD, veg_count: {1, 0, 0, 0, 0, 0}, even_score: 7, odd_score: 3}}
+		{"PEPPER: EVEN=7, ODD=3",  Criteria{criteria_type: EVEN_ODD, veg_count: {1, 0, 0, 0, 0, 0}, even_score: 7, odd_score: 3}}
 		{"CABBAGE: EVEN=7, ODD=3", Criteria{criteria_type: EVEN_ODD, veg_count: {0, 0, 0, 1, 0, 0}, even_score: 7, odd_score: 3}}
-		{"CARROT: EVEN=7, ODD=3", Criteria{criteria_type: EVEN_ODD, veg_count: {0, 0, 1, 0, 0, 0}, even_score: 7, odd_score: 3}}
-		{"TOMATO: EVEN=7, ODD=3", Criteria{criteria_type: EVEN_ODD, veg_count: {0, 0, 0, 0, 0, 1}, even_score: 7, odd_score: 3}}
-		{"ONION: EVEN=7, ODD=3", Criteria{criteria_type: EVEN_ODD, veg_count: {0, 0, 0, 0, 1, 0}, even_score: 7, odd_score: 3}}
-		{"2 / LETTUCE", }
-		{"2 / PEPPER", }
-		{"2 / CABBAGE", }
-		{"2 / CARROT", }
-		{"2 / TOMATO", }
-		{"2 / ONION", }
-		{"LETTUCE + LETTUCE = 5", }
-		{"PEPPER + PEPPER = 5", }
-		{"CABBAGE + CABBAGE = 5", }
-		{"CARROT + CARROT = 5", }
-		{"TOMATO + TOMATO = 5", }
-		{"ONION + ONION = 5", }
+		{"CARROT: EVEN=7, ODD=3",  Criteria{criteria_type: EVEN_ODD, veg_count: {0, 0, 1, 0, 0, 0}, even_score: 7, odd_score: 3}}
+		{"TOMATO: EVEN=7, ODD=3",  Criteria{criteria_type: EVEN_ODD, veg_count: {0, 0, 0, 0, 0, 1}, even_score: 7, odd_score: 3}}
+		{"ONION: EVEN=7, ODD=3",   Criteria{criteria_type: EVEN_ODD, veg_count: {0, 0, 0, 0, 1, 0}, even_score: 7, odd_score: 3}}
+		{"2 / LETTUCE",            Criteria{criteria_type: PER, veg_count: {0, 1, 0, 0, 0, 0}, per_scores: {0, 2, 0, 0, 0, 0}}}
+		{"2 / PEPPER",             Criteria{criteria_type: PER, veg_count: {1, 0, 0, 0, 0, 0}, per_scores: {2, 0, 0, 0, 0, 0}}}
+		{"2 / CABBAGE",            Criteria{criteria_type: PER, veg_count: {0, 0, 0, 1, 0, 0}, per_scores: {0, 0, 0, 2, 0, 0}}}
+		{"2 / CARROT",             Criteria{criteria_type: PER, veg_count: {0, 0, 1, 0, 0, 0}, per_scores: {0, 0, 2, 0, 0, 0}}}
+		{"2 / TOMATO",             Criteria{criteria_type: PER, veg_count: {0, 0, 0, 0, 0, 1}, per_scores: {0, 0, 0, 0, 0, 2}}}
+		{"2 / ONION",              Criteria{criteria_type: PER, veg_count: {0, 0, 0, 0, 1, 0}, per_scores: {0, 0, 0, 0, 2, 0}}}
+		{"LETTUCE + LETTUCE = 5",  Criteria{criteria_type: SUM, veg_count: {0, 2, 0, 0, 0, 0}, single_score: 5}}
+		{"PEPPER + PEPPER = 5",    Criteria{criteria_type: SUM, veg_count: {2, 0, 0, 0, 0, 0}, single_score: 5}}
+		{"CABBAGE + CABBAGE = 5",  Criteria{criteria_type: SUM, veg_count: {0, 0, 0, 2, 0, 0}, single_score: 5}}
+		{"CARROT + CARROT = 5",    Criteria{criteria_type: SUM, veg_count: {0, 0, 2, 0, 0, 0}, single_score: 5}}
+		{"TOMATO + TOMATO = 5",    Criteria{criteria_type: SUM, veg_count: {0, 0, 0, 0, 0, 2}, single_score: 5}}
+		{"ONION + ONION = 5",      Criteria{criteria_type: SUM, veg_count: {0, 0, 0, 0, 2, 0}, single_score: 5}}
 		{"CARROT + ONION = 5", }
 		{"CABBAGE + ONION = 5", }
 		{"TOMATO + LETTUCE = 5", }
