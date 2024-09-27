@@ -37,6 +37,19 @@ func assert(c bool) {
 	}
 }
 
+func assertM(c bool, m string) {
+	if !c {
+		s := fmt.Sprintf("assertion failed %v %s", c, m)
+		panic(s)
+	}
+}
+
+func todo() {
+	s := fmt.Sprintf("TODO")
+	panic(s)
+}
+
+
 type JCriteria struct {
 	PEPPER string
 	LETTUCE string
@@ -142,8 +155,7 @@ func getNumPlayerBotConfigInput(reader *bufio.Reader, prompt string, min int, ma
 
 
 
-
-func parseCriteria(s string) Criteria {
+func parseCriteria(s string) (Criteria, error) {
 	const (
 		IDENTIFIER = iota
 		EQUAL = iota
@@ -160,11 +172,56 @@ func parseCriteria(s string) Criteria {
 		s string
 	}
 
-	tokens := []Token{}
+	type Lexer struct {
+		tokens []Token
+		index int
+	}
 
-	func get_token(tokens []Token, pos int) {
-		assert(pos < len(tokens))
-		return tokens[pos]
+
+	lex := Lexer{}
+
+	func get_token(lex *Lexer) {
+		assert(lex.index < len(lex.tokens))
+		return lex.tokens[lex.index]
+	}
+	func next_token(lex *Lexer) {
+		lex.index += 1
+		assert(lex.index < len(lex.tokens))
+		return lex.tokens[lex.index]
+	}
+
+	func look_token(lex *Lexer, pos int) (Token, bool) {
+		if  lex.index + pos >= len(lex.tokens) {
+			return Token{}, false
+		}
+		return lex.tokens[lex.index + pos], true
+	}
+
+	func parseNumber(lex *Lexer) (int, error) {
+		minus_or_num := next_token(lex)
+		num := 0
+		if minus_or_num.token_type == MINUS {
+			t := next_token(&lex)
+			if t.token_type != NUMBER {
+				todo()
+			}
+
+			num, err = strconv.Atoi(t.s)
+			if err != nil {
+				return criteria, err
+			}
+			num *= -1
+
+
+		} else if minus_or_num.token_type == NUMBER {
+			num, err = strconv.Atoi(minus_or_num.s)
+			if err != nil {
+				return criteria, err
+			}
+		} else {
+			todo()
+		}
+		return num, nil
 	}
 
 	// tokenize the criterias
@@ -206,54 +263,255 @@ func parseCriteria(s string) Criteria {
 		} else if s[i] == '>' {
 			tokens = append(token, Token{GREATER, s[i:i + 1]})
 		} else {
-			assert(false)
+			todo()
 		}
 	}
 
-	criterias := []Criteria{}
+	criteria := Criteria{}
 
-	for i := 0; i < len(tokens); i += 1 {
-		if get_token(tokens, i).token_type == IDENTIFIER {
-			if tokens[i].s == "MOST" {				
-				i += 1
-				if get_token(tokens, i).s == "TOTAL" {
-					i += 1
-					assert(get_token(tokens, i).s == "VEGETABLE")
-					i += 1
-					assert(get_token(tokens, i).token_type == EQUAL)
-					i += 1
-					num_token := get_token(tokens, i)
-					assert(num_token.token_type == NUMBER)
+	for lex.index := 0; lex.index < len(tokens); lex.index += 1 {
+		first := get_token(&lex) 
+		if first.token_type == IDENTIFIER {
+			if first.s == "MOST" || first.s == "FEWEST" {
+				t := next_token(&lex) 
+				if t.s == "TOTAL" {
+					if next_token(&lex).s != "VEGETABLE" {
+						todo()
+					}
+					if next_token(&lex).token_type != EQUAL {
+						todo()
+					}
 
-					val, err := strconv.Atoi()
+					num, err := parseNumber(&lex)
+					if err != nil {
+						return criteria, err
+					}
+					if first.s == "MOST" {
+						criteria.criteria_type = MOST_TOTAL
+					} else if first.s == "FEWEST" {
+						criteria.criteria_type.s = FEWEST_TOTAL
+					} else {
+						assertM(false, "unreachable")
+					}
+					criteria.single_score = num
+
+					return criteria, nil
+
+				} else if isVegetable(t.s) {
+					v := getVegetableType(t.s)
+					if next_token(&lex).token_type != '=' {
+						todo()
+					}
+
+					num, err := parseNumber(&lex)
+					if err != nil {
+
+					}
+
+					if first.s == "MOST" {
+						criteria.criteria_type := MOST
+					} else if first.s == "FEWEST" {
+						criteria.criteria_type := FEWEST
+					} else {
+						assertM(false, "unreachable")
+					}
+					criteria.veg_count[int(v)] += 1
+					criteria.single_score = num
+
+					return criteria, nil
 
 				} else {
+					todo()
+				}
+			} else if first.s == "COMPLETE" {
+				if next_token(&lex).s != "SET" {
+					todo()
+				}
+				if next_token(&lex).token_type != EQUAL {
+					todo()
+				}
+				num, err := parseNumber(&lex)
+				if err != nil {
+					return criteria, err
+				}
 
+				criteria.criteria_type = COMPLETE_SET
+				criteria.single_score = num
+
+				return criteria, nil
+
+			} else if isVegetable(first.s) {
+				v := getVegetableType(first.s)
+				t := next_token(&lex)
+				if t.token_type == COLON {
+					if next_token(&lex).s != "EVEN" {
+						todo()
+					}
+					if next_token(&lex).token_type != EQUAL {
+						todo()
+					}
+					even, err := parseNumber(&lex)
+					if err != nil {
+						return criteria, err
+					}
+					if next_token(&lex).token_type != COMMA {
+						todo()
+					}
+					if next_token(&lex).s != "ODD" {
+						todo()
+					}
+					if next_token(&lex).token_type != EQUAL {
+						todo()
+					}
+					odd, err := parseNumber(&lex)
+					if err != nil {
+						return criteria, err
+					}
+
+					criteria_type = EVEN_ODD
+					criteria.veg_count[int(v)] += 1
+					criteria.even_score = even
+					criteria.odd_score = odd
+
+					return criteria, nil
+
+				} else if t.token_type == PLUS {
+					criteria.veg_count[int(v)] += 1
+					for true {
+						t := next_token(&lex)
+						if !isVegetable(t.s) {
+							todo()
+						}
+						v := getVegetableType(t.s)
+						criteria.veg_count[int(v)] += 1
+						if next_token(&lex).token_type != PLUS {
+							break
+						}
+					}
+					if next_token.token_type != EQUAL {
+						todo()
+					}
+					num, err := parseNumber(&lex)
+					if err != nil {
+						return criteria, err
+					}
+
+					criteria.criteria_type = SUM
+					criteria.single_score = num
+
+					return criteria, nil
+
+				} else {
+					todo()
+				}
+			} else {
+				todo()
+			}
+		} else if first.token_type == NUMBER {
+			num1, err := parseNumber(&lex)
+			if err != nil {
+				return criteria, err
+			}
+			if get_token(&lex).token_type != SLASH {
+				todo()
+			}
+			t := next_token(&lex)
+			if t.s == "VEGETABLE" {
+				if next_token.s != "TYPE" {
+					todo()
+				}
+				if next_token(&lex).token_type != GREATER {
+					todo()
+				}
+				if next_token(&lex).token_type != EQUAL {
+					todo()
+				}
+				num2, err := parseNumber(&lex)
+				if err != nil {
+					return criteria, err
+				}
+
+				criteria.criteria_type = PER_TYPE_GREATER_THAN_EQ
+				criteria.single_score = num1
+				criteria.greater_than_eq_value = num2
+
+				return criteria, nil
+
+			} else if t.s == "MISSING" {
+				if next_token(&lex).s != "VEGETABLE" {
+					todo()
+				}
+				if next_token(&lex).s != "TYPE" {
+					todo()
+				}
+
+				criteria.criteria_type = PER_MISSING_TYPE
+				criteria.single_score = num1
+
+				return criteria, nil
+			} else {
+				assertM(false, "unreachable")
+			} 
+			for true {
+				num, err := parseNumber(&lex)
+				if err != nil {
+					return criteria, err
+				}
+				if get_token(&lex).token_type != SLASH {
+					todo()
+				}
+				t := get_token(&lex)
+				if !isVegetable(t.s) {
+					todo()
+				}
+				v := getVegetableType(t.s)
+				criteria.per_scores[int(v)] = num
+
+				if get_token(&lex).token_type == COMMA {
+					break
 				}
 			}
-		} else if token.token_type == NUMBER {
 
+			criteria.criteria_type = PER
+
+			return criteria, nil
 		} else {
-			assert(false)
+			todo()
 		}
 	}
 }
 
-func createCriteriaTable(json_cards *JCards) Criteria[] {
+func createCriteriaTable(json_cards *JCards) (Criteria[], error) {
 
 	criteria_table := []Criteria{}
-
+	var err error
 
 	for _, jcard range json_cards.Cards {
-		criteria_table = append(criteria_table, parseCriteria(jcard.criteria.PEPPER))
-		criteria_table = append(criteria_table, parseCriteria(jcard.criteria.LETTUCE))
-		criteria_table = append(criteria_table, parseCriteria(jcard.criteria.CARROT))
-		criteria_table = append(criteria_table, parseCriteria(jcard.criteria.CABBAGE))
-		criteria_table = append(criteria_table, parseCriteria(jcard.criteria.ONION))
-		criteria_table = append(criteria_table, parseCriteria(jcard.criteria.TOMATO))
+		criteria_table, err = append(criteria_table, parseCriteria(jcard.criteria.PEPPER))
+		if err != nil {
+			return criteria_table, err
+		}
+		criteria_table, err = append(criteria_table, parseCriteria(jcard.criteria.LETTUCE))
+		if err != nil {
+			return criteria_table, err
+		}
+		criteria_table, err = append(criteria_table, parseCriteria(jcard.criteria.CARROT))
+		if err != nil {
+			return criteria_table, err
+		}
+		criteria_table, err = append(criteria_table, parseCriteria(jcard.criteria.CABBAGE))
+		if err != nil {
+			return criteria_table, err
+		}
+		criteria_table, err = append(criteria_table, parseCriteria(jcard.criteria.ONION))
+		if err != nil {
+			return criteria_table, err
+		}
+		criteria_table, err = append(criteria_table, parseCriteria(jcard.criteria.TOMATO))
+		if err != nil {
+			return criteria_table, err
+		}
 	}
-
-
 }
 
 func createGameState(json_cards *JCards, player_num int, bot_num int, seed int64) GameState {
