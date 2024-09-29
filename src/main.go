@@ -1018,9 +1018,11 @@ func calculateScore(s *GameState, actor_id int) int {
 	return score
 }
 
+
 type Connection struct {
 	alive bool
-	socket net.Conn
+	conn net.Conn
+	buf []byte
 }
 
 
@@ -1031,10 +1033,17 @@ type Server struct {
 }
 
 
-func handleConnecion(conn net.Conn) {
-	defer conn.Close()
-	
+func handleConnecion(server *Server, conn_id int) {
+	for true {
+		_, err := server.conns[conn_id].conn.Read(server.conns[conn_id].buf)
+		if err != nil {
+			fmt.Println("ERROR: with conn_id = %d %s\n", err, conn_id)
+			server.conns[conn_id].alive = false
+		}
+	}
+	server.conns[conn_id].conn.Close()
 }
+
 
 func main() {
 	
