@@ -11,6 +11,7 @@ import (
 	"math"
 	"math/rand"
 	"slices"
+	"net"
 )
 
 type VegType int
@@ -108,8 +109,10 @@ type ActorData struct {
 	vegetable_num [VEGETABLE_TYPE_NUM]int
 	point_pile []Card
 }
+
 // actors are players and bots
 type GameState struct {
+	str_criterias []string
 	criteria_table []Criteria
 	piles [][]Card
 	market [6]Card
@@ -220,12 +223,11 @@ func parseNumber(lex *Lexer, minus_or_num Token) (int, error) {
 			todo()
 		}
 
-		num, err := strconv.Atoi(t.s)
+		num, err = strconv.Atoi(t.s)
 		if err != nil {
 			return 0, err
 		}
 		num *= -1
-
 
 	} else if minus_or_num.token_type == NUMBER {
 		num, err = strconv.Atoi(minus_or_num.s)
@@ -233,8 +235,6 @@ func parseNumber(lex *Lexer, minus_or_num Token) (int, error) {
 			return 0, err
 		}
 	} else {
-		fmt.Printf("Expected number or - got %v\n", minus_or_num)
-		todo()
 		return 0, fmt.Errorf("Expected number or minus got %v\n", minus_or_num)
 	}
 	return num, nil
@@ -514,7 +514,6 @@ func parseCriteria(s string) (Criteria, error) {
 
 				return criteria, nil
 			} else {
-				assertM(false, "bug here")
 				for true {
 					if !isVegetable(t.s) {
 						todo()
@@ -534,7 +533,6 @@ func parseCriteria(s string) (Criteria, error) {
 						return Criteria{}, err
 					}
 					t = next_token(&lex)
-	
 				}
 	
 				criteria.criteria_type = PER
@@ -593,7 +591,7 @@ func createCriteriaTable(json_cards *JCards) ([]Criteria, error) {
 	return criteria_table, nil
 }
 
-func createGameState(json_cards *JCards, player_num int, bot_num int, seed int64) GameState {
+func createGameState(json_cards *JCards, player_num int, bot_num int, seed int64) (GameState, error) {
 	actor_num := player_num + bot_num
 	assert(actor_num >= 2 && actor_num <= 6)
 
@@ -601,12 +599,10 @@ func createGameState(json_cards *JCards, player_num int, bot_num int, seed int64
 	rand.Seed(seed)
 
 
-
-
-
+	
 	var ids []int
-	for _, jcard := range json_cards.Cards {
-		ids = append(ids, jcard.Id)
+	for id, _ := range json_cards.Cards {
+		ids = append(ids, id)
 	}
 
 	per_vegetable_num := actor_num * 3
@@ -616,22 +612,38 @@ func createGameState(json_cards *JCards, player_num int, bot_num int, seed int64
 		rand.Shuffle(len(ids), func(i int, j int) {
 			ids[i], ids[j] = ids[j], ids[i]
 		})
-
+		
 		for j := 0; j < per_vegetable_num; j += 1 {
 			card := Card{
 				Id: ids[j], 
 				Vegetable_type: VegType(i), 
 			}
 			deck = append(deck, card)
-
+			
 		}
 	}
 
 	rand.Shuffle(len(deck), func(i int, j int) {
 		deck[i], deck[j] = deck[j], deck[i]
 	})
-
+	
 	s := GameState{}
+
+	for _, card := range json_cards.Cards {
+		s.str_criterias = append(s.str_criterias, card.Criteria.PEPPER)
+		s.str_criterias = append(s.str_criterias, card.Criteria.LETTUCE)
+		s.str_criterias = append(s.str_criterias, card.Criteria.CARROT)
+		s.str_criterias = append(s.str_criterias, card.Criteria.CABBAGE)
+		s.str_criterias = append(s.str_criterias, card.Criteria.ONION)
+		s.str_criterias = append(s.str_criterias, card.Criteria.TOMATO)
+	}
+
+	table, err := createCriteriaTable(json_cards)
+	if err != nil {
+		return GameState{}, err
+	}
+	s.criteria_table = table
+
 	pile_size := len(deck) / PLAY_PILES_NUM
 	pile_size_remainder := len(deck) % PLAY_PILES_NUM
 	assert(pile_size_remainder == 0)
@@ -651,7 +663,7 @@ func createGameState(json_cards *JCards, player_num int, bot_num int, seed int64
 	s.player_num = player_num
 	s.bot_num = bot_num
 
-	return s
+	return s, nil
 }
 
 func isNullCard(c *Card) bool {
@@ -662,6 +674,10 @@ func setNullCard(c *Card) {
 	c.Id = 0
 }
 
+func getCriteriaString(s *GameState, veg_type VegType, id int) string {
+	return s.str_criterias[int(veg_type) + id * VEGETABLE_TYPE_NUM]
+}
+
 func displayMarket(s *GameState) {
 	fmt.Println("---- MARKET ----")
 	for i, card := range s.market {
@@ -670,9 +686,10 @@ func displayMarket(s *GameState) {
 		} 
 	}
 	fmt.Println("piles")
-	for i := range s.piles {
-		if len(s.piles[i]) > 0 {
-			fmt.Printf("[%d] ADDCRITERIAHERE\n", i)
+	for i, pile := range s.piles {
+		if len(pile) > 0 {
+			top_card := pile[len(pile) - 1]
+			fmt.Printf("[%d] %s\n", i, getCriteriaString(s, top_card.Vegetable_type, top_card.Id))
 		} else {
 			fmt.Println("")
 		}
@@ -719,8 +736,8 @@ func displayActorCards(s *GameState) {
 
 	fmt.Println("---- point cards ----")
 
-	for range s.actor_data[s.active_actor].point_pile {
-		fmt.Printf("ADDCRITERIAHERE\n")
+	for _, card := range s.actor_data[s.active_actor].point_pile {
+		fmt.Printf("%s\n", getCriteriaString(s, card.Vegetable_type, card.Id))
 	}
 }
 
@@ -756,46 +773,44 @@ func pickCardsFromMarket(reader *bufio.Reader, s *GameState) {
 			log.Fatal(err)
 		}
 		
-		switch len(str) {
-			case 1: {
-				if str[0] >= '0' && str[0] <= '9' {
-					index, err := strconv.Atoi(str)
-					if err != nil {
-						log.Fatal(err)
-					}
-					if len(s.piles[index]) > 0 {
-						s.actor_data[s.active_actor].point_pile = append(s.actor_data[s.active_actor].point_pile, drawFromTop(s, index))
-					} else {
-						fmt.Printf("%d pile is empty pick another one\n", index)
-						continue out
-					}
-				} else if isWithinAtoF(str[0]) {
-					index := str[0] - 'A'
+		if len(str) == 1 {
+			if str[0] >= '0' && str[0] <= '9' {
+				index, err := strconv.Atoi(str)
+				if err != nil {
+					log.Fatal(err)
+				}
+				if len(s.piles[index]) > 0 {
+					s.actor_data[s.active_actor].point_pile = append(s.actor_data[s.active_actor].point_pile, drawFromTop(s, index))
+				} else {
+					fmt.Printf("%d pile is empty pick another one\n", index)
+					continue out
+				}
+				break out
+			} else if isWithinAtoF(str[0]) {
+				index := str[0] - 'A'
+				c := s.market[index]
+				if isNullCard(&c) {
+					continue out
+				}
+				s.actor_data[s.active_actor].vegetable_num[int(c.Vegetable_type)] += 1
+				setNullCard(&s.market[index])
+				break out
+			}
+		} else if len(str) == 2 {
+			if  isWithinAtoF(str[0]) && isWithinAtoF(str[1]) {
+				indicies := [2]int{int(str[0]) - 'A', int(str[1]) - 'A'}
+
+				for i, index := range indicies {
 					c := s.market[index]
 					if isNullCard(&c) {
+						fmt.Printf("%c pos is empty pick another one\n", str[i])
 						continue out
 					}
 					s.actor_data[s.active_actor].vegetable_num[int(c.Vegetable_type)] += 1
 					setNullCard(&s.market[index])
 				}
+
 				break out
-			}
-			case 2: {
-				if  isWithinAtoF(str[0]) && isWithinAtoF(str[1]) {
-					indicies := [2]int{int(str[0]) - 'A', int(str[1]) - 'A'}
-
-					for i, index := range indicies {
-						c := s.market[index]
-						if isNullCard(&c) {
-							fmt.Printf("%c pos is empty pick another one\n", str[i])
-							continue out
-						}
-						s.actor_data[s.active_actor].vegetable_num[int(c.Vegetable_type)] += 1
-						setNullCard(&s.market[index])
-					}
-
-					break out
-				}
 			}
 		}
 	}
@@ -806,7 +821,7 @@ func pickCardToChangeToVeg(reader *bufio.Reader, s *GameState) {
 		if len(s.actor_data[s.active_actor].point_pile) == 0 {
 			break
 		}
-		fmt.Printf("pick 0-1 point card, type n to pick none example: 5\n")
+		fmt.Printf("pick 0-1 point card to flip to vegetable, type n to pick none example: 5\n")
 		st, err := reader.ReadString('\n')
 		str := st[0: len(st) - 2]
 		if err != nil {
@@ -1003,7 +1018,32 @@ func calculateScore(s *GameState, actor_id int) int {
 	return score
 }
 
+type Connection struct {
+	alive bool
+	socket net.Conn
+}
+
+
+type Server struct {
+	conns []Connection
+	player_num int
+	state GameState
+}
+
+
+func handleConnecion(conn net.Conn) {
+	defer conn.Close()
+	
+}
+
 func main() {
+	
+	reader := bufio.NewReader(os.Stdin)
+	player_num, bot_num, err := getNumPlayerBotConfigInput(reader, "type number of players,bots example 1,1", 2, 6)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	data, err := os.ReadFile("PointSaladManifest.json")
 	if err != nil {
 		log.Fatal(err)
@@ -1015,14 +1055,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	reader := bufio.NewReader(os.Stdin)
 
-	player_num, bot_num, err := getNumPlayerBotConfigInput(reader, "type number of players,bots example 1,1", 2, 6)
+	state, err := createGameState(&json_cards, player_num, bot_num, 0)	
 	if err != nil {
-		log.Fatal(err)
+		fmt.Printf("ERROR: Failed to create game state: %s\n", err)
+		return
 	}
-
-	state := createGameState(&json_cards, player_num, bot_num, 0)	
 
 	for true {
 		flipCardsFromPiles(&state)
