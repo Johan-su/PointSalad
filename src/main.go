@@ -657,12 +657,12 @@ func createGameState(json_cards *JCards, player_num int, bot_num int, seed int64
 	for range actor_num {
 		s.actor_data = append(s.actor_data, ActorData{})
 	}
-
-
+	
+	
 	s.active_actor = rand.Intn(actor_num)
 	s.player_num = player_num
 	s.bot_num = bot_num
-
+	flipCardsFromPiles(s)
 	return s, nil
 }
 
@@ -1018,40 +1018,73 @@ func calculateScore(s *GameState, actor_id int) int {
 	return score
 }
 
+type PlayerActionType int
+const (
+	INVALID PlayerActionType = iota
+	PICK_FROM_MARKET PlayerActionType = iota
+	PICK_POINT_CARD_PILE PlayerActionType = iota
+)
 
-type Connection struct {
-	alive bool
-	conn net.Conn
-	buf []byte
+type PlayerAction struct {
+
 }
 
+type Connections struct {
+	alive []bool
+	conn []net.Conn
+	out []chan []byte 
+	in []chan []byte 
+}
 
 type Server struct {
-	conns []Connection
-	player_num int
+	connections Connections
 	state GameState
 }
 
 
-func handleConnecion(server *Server, conn_id int) {
-	for true {
-		_, err := server.conns[conn_id].conn.Read(server.conns[conn_id].buf)
-		if err != nil {
-			fmt.Println("ERROR: with conn_id = %d %s\n", err, conn_id)
-			server.conns[conn_id].alive = false
-		}
-	}
-	server.conns[conn_id].conn.Close()
+type Game interface {
+	init(player_num int)
+	update()
 }
 
 
-func main() {
-	
-	reader := bufio.NewReader(os.Stdin)
-	player_num, bot_num, err := getNumPlayerBotConfigInput(reader, "type number of players,bots example 1,1", 2, 6)
-	if err != nil {
-		log.Fatal(err)
+func handleConnecion(connections Connections, conn_id int) {
+	var buf []byte
+	for true {
+		_, err := connections.conn[conn_id].conn.Read(buf)
+		if err != nil {
+			fmt.Println("ERROR: with conn_id = %d %s\n", err, conn_id)
+			break
+		}
 	}
+	connections.conn[conn_id].alive = false
+	connections.conn[conn_id].conn.Close()
+	
+}
+
+
+func server_init(server *Server, port int, player_num int) {
+	ln, err := net.Listen("tcp", ":" + strconv.Itoa(port))
+	if err != nil {
+		fmt.Printf("Failed to listen to port %d: %s\n", port, err)
+	}
+	for len(server.conns) < player_num {
+		conn, err := ln.Accept()
+		if err != nil {
+			fmt.Printf("Failed to accept connection %s", err)
+			continue
+		}
+		server.conns = append(server.conns, Connection{alive: true, conn: conn, out: make(chan []byte), in: make(chan []byte)})
+	}
+	for i := range server.conns {
+		go handleConnecion(server.conns, i)
+	}
+}
+
+
+func init(state *GameState, player_num int) {
+
+	bot_num := 0
 
 	data, err := os.ReadFile("PointSaladManifest.json")
 	if err != nil {
@@ -1065,55 +1098,80 @@ func main() {
 		log.Fatal(err)
 	}
 
-	state, err := createGameState(&json_cards, player_num, bot_num, 0)	
-	if err != nil {
-		fmt.Printf("ERROR: Failed to create game state: %s\n", err)
-		return
-	}
-
-	for true {
-		flipCardsFromPiles(&state)
-		displayActorCards(&state)
-		displayMarket(&state)
-		// get decisions from actor
-		pickCardsFromMarket(reader, &state)
-		pickCardToChangeToVeg(reader, &state)
-
-
-		all_empty := true
-		for i := range state.piles {
-			if len(state.piles[i]) != 0 {
-				all_empty = false
-				break
-			}
+	{
+		game_state, err := createGameState(&json_cards, player_num, bot_num, 0)	
+		if err != nil {
+			fmt.Printf("ERROR: Failed to create game state: %s\n", err)
+			return
 		}
-		if all_empty {
-			type Score struct {
-				score int 
-				actor_id int
-			}
-			scores := []Score{}
+		*state = game_state
+	}
+}
 
-			for i := range state.player_num + state.bot_num {
-				scores = append(scores, Score{score: calculateScore(&state, i), actor_id: i})
-			}
 
-			slices.SortFunc(scores, func(a, b Score) int {
-				return a.score - b.score
-			})
+func update(state *GameState, in []chan PlayerAction, out []chan string) {
+	displayActorCards(state)
+	displayMarket(state)
+	// get decisions from actor
+	pickCardsFromMarket(reader, state)
+	pickCardToChangeToVeg(reader, state)
 
-			for i, s := range scores {
-				fmt.Printf("%d %d", s.score, s.actor_id)
-				if i == 0 {
-					fmt.Printf(" Winner\n")
+
+	all_empty := true
+	for i := range state.piles {
+		if len(state.piles[i]) != 0 {
+			all_empty = false
+			break
+		}
+	}
+	if all_empty {
+		type Score struct {
+			score int 
+			actor_id int
+		}
+		scores := []Score{}
+		
+		for i := range state.player_num + state.bot_num {
+			scores = append(scores, Score{score: calculateScore(state, i), actor_id: i})
+		}
+
+		slices.SortFunc(scores, func(a, b Score) int {
+			return a.score - b.score
+		})
+		
+		for i, s := range scores {
+			fmt.Printf("%d %d", s.score, s.actor_id)
+			if i == 0 {
+				fmt.Printf(" Winner\n")
 				} else {
 					fmt.Printf("\n")
 				}
 			}
 		}
+		
+	// next player
+	state.active_actor += 1
+	state.active_actor %= state.player_num + state.bot_num
+	flipCardsFromPiles(state)
+}
 
-		// next player
-		state.active_actor += 1
-		state.active_actor %= state.player_num + state.bot_num
+
+func main() {
+	reader := bufio.NewReader(os.Stdin)
+	player_num, bot_num, err := getNumPlayerBotConfigInput(reader, "type number of players,bots example 1,1", 2, 6)
+	if err != nil {
+		log.Fatal(err)
+	}
+	reader.Close()
+
+	server := Server{}
+	server_init(&server, 8080, player_num)
+
+
+	init(&server.state, player_num, bot_num)
+
+
+	for true {
+		update(&server.state)
 	}
 }
