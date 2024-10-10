@@ -6,34 +6,6 @@ import (
 	"encoding/json"
 )
 
-func CorrectVegetableAmount(t *testing.T, json_cards *JCards, actor_num int, expected_num_of_vegetable_per_type int) {
-	s := createGameState(json_cards, 0, actor_num, 0)
-	
-	vegetable_nums := [VEGETABLE_TYPE_NUM]int{}
-	
-	for i1, pile := range s.piles {
-		for j1, card := range pile {
-			vegetable_nums[int(card.Vegetable_type)] += 1
-			for i2, other_pile := range s.piles {
-				for j2, other_card := range other_pile {
-					if i1 == i2 && j1 == j2 {
-						continue
-					}
-					if card.Id == other_card.Id && card.Vegetable_type == other_card.Vegetable_type {
-						t.Errorf("pile_id1=%d card_id1=%d pile_id2=%d card_id2=%d actor_num=%d %v vegetable with same id %d, ", i1, j1, i2, j2, actor_num, card.Vegetable_type, card.Id)
-					}
-				}
-			}
-		}
-	}
-	
-	for i, vegetable_num := range vegetable_nums {
-		if vegetable_num != expected_num_of_vegetable_per_type {
-			t.Errorf("Expected %d %v got %d", expected_num_of_vegetable_per_type, VegType(i), vegetable_num)
-		}
-	}
-}
-
 var inited bool = false
 var json_cards JCards
 
@@ -54,25 +26,50 @@ func initJson() {
 }
 
 
-// req3
-func TestCorrectVegetables(t *testing.T) {
-	initJson()
-	test_table := []struct{actor_num int; expected_num_of_vegetable_per_type int} {
-		{2, 6},
-		{3, 9},
-		{4, 12},
-		{5, 15},
-		{6, 18},
-	}
-	for _, v := range test_table {
-		CorrectVegetableAmount(t, &json_cards, v.actor_num, v.expected_num_of_vegetable_per_type)
+
+// ---- Requirement 1 ----
+func CorrectPlayerAmount(t *testing.T, expected bool, player_num int, bot_num int) {
+	s, err := createGameState(&json_cards, player_num, bot_num, 0)
+	bool value = err != nil
+	if expected != value {
+		t.Errorf("Expected %v got %v with %v %v\n", expected, value, player_num, bot_num)
 	}
 }
 
+func TestPlayerAmount(t *testing.T) {
+	initJson()
+	test_table := []struct{expected bool, player_num int, bot_num int} {
+		{false, -1, -1},
+		// players
+		{false, 0, 0},
+		{false, 1, 0},
+		{true, 2, 0},
+		{true, 3, 0},
+		{true, 4, 0},
+		{true, 5, 0},
+		{true, 6, 0},
+		{false, 7, 0},
+		{false, 0, 1},
+		// bots
+		{false, 0, 1},
+		{true, 0, 2},
+		{true, 0, 3},
+		{true, 0, 4},
+		{true, 0, 5},
+		{true, 0, 6},
+		{false, 0, 7},
+		{false, 0, 8}
+	}
+	for _, test := range test_table {
+
+	}
+}
+
+// ---- Requirement 2 ----
 func CorrectParsing(t *testing.T, criteria string, expected Criteria) {
 	c, err := parseCriteria(criteria)
 	if err != nil {
-		t.Errorf("ERROR: parsing %s, %s", criteria, err)
+		t.Errorf("Error parsing %s, %s", criteria, err)
 		return
 	} 
 	if c != expected {
@@ -199,4 +196,56 @@ func TestCriteriaParsing(t *testing.T) {
 		CorrectParsing(t, test.criteria_str, test.expected)
 	}
 }
+
+// ---- Requirement 3 ----
+
+func CorrectVegetableAmount(t *testing.T, actor_num int, expected_num_of_vegetable_per_type int) {
+	s := createGameState(json_cards, 0, actor_num, 0)
+	
+	vegetable_nums := [VEGETABLE_TYPE_NUM]int{}
+	
+	for i1, pile := range s.piles {
+		for j1, card := range pile {
+			vegetable_nums[int(card.Vegetable_type)] += 1
+			for i2, other_pile := range s.piles {
+				for j2, other_card := range other_pile {
+					if i1 == i2 && j1 == j2 {
+						continue
+					}
+					if card.Id == other_card.Id && card.Vegetable_type == other_card.Vegetable_type {
+						t.Errorf("pile_id1=%d card_id1=%d pile_id2=%d card_id2=%d actor_num=%d %v vegetable with same id %d, ", i1, j1, i2, j2, actor_num, card.Vegetable_type, card.Id)
+					}
+				}
+			}
+		}
+	}
+	
+	for i, vegetable_num := range vegetable_nums {
+		if vegetable_num != expected_num_of_vegetable_per_type {
+			t.Errorf("Expected %d %v got %d", expected_num_of_vegetable_per_type, VegType(i), vegetable_num)
+		}
+	}
+}
+
+
+
+func TestCorrectVegetables(t *testing.T) {
+	initJson()
+	test_table := []struct{actor_num int; expected_num_of_vegetable_per_type int} {
+		{2, 6},
+		{3, 9},
+		{4, 12},
+		{5, 15},
+		{6, 18},
+	}
+	for _, v := range test_table {
+		CorrectVegetableAmount(t, &json_cards, v.actor_num, v.expected_num_of_vegetable_per_type)
+	}
+}
+
+// ---- End ----
+
+
+
+
 

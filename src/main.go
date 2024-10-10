@@ -6,12 +6,10 @@ import (
 	"os"
 	"log"
 	"strconv"
-	"encoding/json"
-	"strings"
 	"math"
 	"math/rand"
-	"slices"
 	"net"
+	"flag"
 )
 
 type VegType int
@@ -30,6 +28,8 @@ const (
 
 const (
 	PLAY_PILES_NUM = 3
+	SERVER_BYTE_RECEIVE_SIZE = 8
+	SERVER_BYTE_SEND_SIZE = 512
 )
 
 
@@ -110,53 +110,11 @@ type ActorData struct {
 	point_pile []Card
 }
 
-// actors are players and bots
-type GameState struct {
-	str_criterias []string
-	criteria_table []Criteria
-	piles [][]Card
-	market [6]Card
-	actor_data []ActorData
-	active_actor int
-	player_num int
-	bot_num int
+type CardSpot struct {
+	has_card bool 
+	card Card
 }
 
-
-func getNumPlayerBotConfigInput(reader *bufio.Reader, prompt string, min int, max int) (int, int, error) {
-	var player_num int
-	var bot_num int
-	var err error
-	fmt.Print(prompt)
-	fmt.Printf(" [%d-%d]\n", min, max)
-	for true {
-		s, err := reader.ReadString('\n')
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		str := s[0: len(s) - 2]
-		strs := strings.Split(str, ",")
-
-		player_num, err = strconv.Atoi(strs[0])
-		if err != nil {
-			return 0, 0, err
-		}
-		bot_num, err = strconv.Atoi(strs[1])
-		if err != nil {
-			return 0, 0, err
-		}
-
-		actor_num := player_num + bot_num
-		if actor_num >= min && actor_num <= max {
-			break
-		} else {
-			fmt.Printf("sum of %d + %d not within bounds [%d-%d]\n", player_num, bot_num, min, max)
-		}
-	}
-
-	return player_num, bot_num, err
-}
 
 type TokenType int
 const (
@@ -591,13 +549,12 @@ func createCriteriaTable(json_cards *JCards) ([]Criteria, error) {
 	return criteria_table, nil
 }
 
-func createGameState(json_cards *JCards, player_num int, bot_num int, seed int64) (GameState, error) {
+func createPointSalad(json_cards *JCards, player_num int, bot_num int, seed int64) (PointSalad, error) {
 	actor_num := player_num + bot_num
 	assert(actor_num >= 2 && actor_num <= 6)
 
-	fmt.Printf("seed = %d\n", seed)
+	log.Printf("seed = %d\n", seed)
 	rand.Seed(seed)
-
 
 	
 	var ids []int
@@ -627,7 +584,7 @@ func createGameState(json_cards *JCards, player_num int, bot_num int, seed int64
 		deck[i], deck[j] = deck[j], deck[i]
 	})
 	
-	s := GameState{}
+	s := PointSalad{}
 
 	for _, card := range json_cards.Cards {
 		s.str_criterias = append(s.str_criterias, card.Criteria.PEPPER)
@@ -640,7 +597,7 @@ func createGameState(json_cards *JCards, player_num int, bot_num int, seed int64
 
 	table, err := createCriteriaTable(json_cards)
 	if err != nil {
-		return GameState{}, err
+		return PointSalad{}, err
 	}
 	s.criteria_table = table
 
@@ -662,55 +619,56 @@ func createGameState(json_cards *JCards, player_num int, bot_num int, seed int64
 	s.active_actor = rand.Intn(actor_num)
 	s.player_num = player_num
 	s.bot_num = bot_num
-	flipCardsFromPiles(s)
 	return s, nil
 }
 
-func isNullCard(c *Card) bool {
-	return c.Id == 0
-}
 
-func setNullCard(c *Card) {
-	c.Id = 0
-}
 
-func getCriteriaString(s *GameState, veg_type VegType, id int) string {
+func getCriteriaString(s *PointSalad, veg_type VegType, id int) string {
 	return s.str_criterias[int(veg_type) + id * VEGETABLE_TYPE_NUM]
 }
 
-func displayMarket(s *GameState) {
-	fmt.Println("---- MARKET ----")
-	for i, card := range s.market {
-		if !isNullCard(&card) {
-			fmt.Printf("[%c] %v\n", i + 'A', card.Vegetable_type)
-		} 
+func broadcast_to_all(out map[int]chan []byte, str string) {
+	fmt.Print(str)
+	for _, value  := range out {
+		value <- []byte(str)
+	}
+}
+
+func displayMarket(s *PointSalad, out map[int]chan []byte) {
+	broadcast_to_all(out, fmt.Sprintf("---- MARKET ----\n"))
+	for i, cardspot := range s.market {
+		if cardspot.has_card {
+			card := cardspot.card
+			broadcast_to_all(out, fmt.Sprintf("[%c] %v\n", i + 'A', card.Vegetable_type))
+		}
 	}
 	fmt.Println("piles")
 	for i, pile := range s.piles {
 		if len(pile) > 0 {
 			top_card := pile[len(pile) - 1]
-			fmt.Printf("[%d] %s\n", i, getCriteriaString(s, top_card.Vegetable_type, top_card.Id))
+			broadcast_to_all(out, fmt.Sprintf("[%d] %s\n", i, getCriteriaString(s, top_card.Vegetable_type, top_card.Id)))
 		} else {
-			fmt.Println("")
+			broadcast_to_all(out, "\n")
 		}
 	}
 }
 
-func drawFromTop(s *GameState, pile_index int) Card {
+func drawFromTop(s *PointSalad, pile_index int) Card {
 	assert(len(s.piles[pile_index]) > 0)
 	c := s.piles[pile_index][len(s.piles[pile_index]) - 1]
 	s.piles[pile_index] = s.piles[pile_index][0:len(s.piles[pile_index]) - 1]
 	return c	
 }
 
-func drawFromBot(s *GameState, pile_index int) Card {
+func drawFromBot(s *PointSalad, pile_index int) Card {
 	assert(len(s.piles[pile_index]) > 0)
 	c := s.piles[pile_index][0]
 	s.piles[pile_index] = s.piles[pile_index][1:len(s.piles[pile_index])]
 	return c
 }
 
-func getMaxPileIndex(s *GameState) int {
+func getMaxPileIndex(s *PointSalad) int {
 	max := len(s.piles[0])
 	index := 0
 
@@ -724,34 +682,37 @@ func getMaxPileIndex(s *GameState) int {
 	return index
 }
 
-func displayActorCards(s *GameState) {
-	assert(len(s.actor_data) + 1 > s.active_actor)
-	fmt.Printf("---- Actor %d ----\n", s.active_actor)
+func displayActorCards(s *PointSalad, out map[int]chan []byte) {
+	assert(s.active_actor < len(s.actor_data))
+	broadcast_to_all(out, fmt.Sprintf("---- Player %d ----\n", s.active_actor))
 
-	fmt.Printf("%d current score\n", calculateScore(s, s.active_actor))
-	fmt.Println("--------")
+	broadcast_to_all(out, fmt.Sprintf("%d current score\n", calculateScore(s, s.active_actor)))
+	broadcast_to_all(out, "--------\n")
 	for i, num := range s.actor_data[s.active_actor].vegetable_num {
-		fmt.Printf("%d %v\n", num, VegType(i))
+		broadcast_to_all(out, fmt.Sprintf("%d %v\n", num, VegType(i)))
+		
 	}
 
-	fmt.Println("---- point cards ----")
+	broadcast_to_all(out, fmt.Sprintf("---- point cards ----\n"))
 
-	for _, card := range s.actor_data[s.active_actor].point_pile {
-		fmt.Printf("%s\n", getCriteriaString(s, card.Vegetable_type, card.Id))
+	for i, card := range s.actor_data[s.active_actor].point_pile {
+		broadcast_to_all(out, fmt.Sprintf("%d: %s\n", i, getCriteriaString(s, card.Vegetable_type, card.Id)))
 	}
 }
 
-func flipCardsFromPiles(s *GameState) {
+func flipCardsFromPiles(s *PointSalad) {
 	for y := range s.piles {
 		for x := range 2 {
 			market_pos := y + x * PLAY_PILES_NUM
-			if isNullCard(&s.market[market_pos]) {
+			if !s.market[market_pos].has_card {
 				if len(s.piles[y]) == 0 {
-					s.market[market_pos] = drawFromTop(s, y)
+					s.market[market_pos].card = drawFromTop(s, y)
+					s.market[market_pos].has_card = true
 			
 				} else {
 					index := getMaxPileIndex(s)
-					s.market[market_pos] = drawFromBot(s, index)
+					s.market[market_pos].card = drawFromBot(s, index)
+					s.market[market_pos].has_card = true
 				}
 			}
 		}
@@ -763,78 +724,20 @@ func isWithinAtoF(a byte) bool {
 	return a >= 'A' && a <= 'F'
 }
 
-func pickCardsFromMarket(reader *bufio.Reader, s *GameState) {
-	out:
-	for true {
-		fmt.Printf("pick 1 or 2 vegetables example: AB or\npick 1 point card example: 0\n")
-		st, err := reader.ReadString('\n')
-		str := st[0: len(st) - 2]
-		if err != nil {
-			log.Fatal(err)
-		}
-		
-		if len(str) == 1 {
-			if str[0] >= '0' && str[0] <= '9' {
-				index, err := strconv.Atoi(str)
-				if err != nil {
-					log.Fatal(err)
-				}
-				if len(s.piles[index]) > 0 {
-					s.actor_data[s.active_actor].point_pile = append(s.actor_data[s.active_actor].point_pile, drawFromTop(s, index))
-				} else {
-					fmt.Printf("%d pile is empty pick another one\n", index)
-					continue out
-				}
-				break out
-			} else if isWithinAtoF(str[0]) {
-				index := str[0] - 'A'
-				c := s.market[index]
-				if isNullCard(&c) {
-					continue out
-				}
-				s.actor_data[s.active_actor].vegetable_num[int(c.Vegetable_type)] += 1
-				setNullCard(&s.market[index])
-				break out
-			}
-		} else if len(str) == 2 {
-			if  isWithinAtoF(str[0]) && isWithinAtoF(str[1]) {
-				indicies := [2]int{int(str[0]) - 'A', int(str[1]) - 'A'}
 
-				for i, index := range indicies {
-					c := s.market[index]
-					if isNullCard(&c) {
-						fmt.Printf("%c pos is empty pick another one\n", str[i])
-						continue out
-					}
-					s.actor_data[s.active_actor].vegetable_num[int(c.Vegetable_type)] += 1
-					setNullCard(&s.market[index])
-				}
-
-				break out
-			}
-		}
-	}
-}
-
-func pickCardToChangeToVeg(reader *bufio.Reader, s *GameState) {
+func pickCardToChangeToVeg(s *PointSalad, in chan []byte, out chan []byte) {
 	for true {
 		if len(s.actor_data[s.active_actor].point_pile) == 0 {
 			break
 		}
-		fmt.Printf("pick 0-1 point card to flip to vegetable, type n to pick none example: 5\n")
-		st, err := reader.ReadString('\n')
-		str := st[0: len(st) - 2]
-		if err != nil {
-			log.Fatal(err)
-		}
-		if len(str) == 0 {
-			continue
-		}
-		if len(str) == 1 && str[0] == 'n' {
+		out <- []byte(fmt.Sprintf("pick 0-1 point card to flip to vegetable, type n to pick none example: 5\n"))
+		input := <- in
+
+		if input[0] == 'n' {
 			break
 		}
 
-		index, err := strconv.Atoi(str)
+		index, err := strconv.Atoi(string(input))
 		if err != nil {
 			continue
 		}
@@ -859,7 +762,7 @@ func pickCardToChangeToVeg(reader *bufio.Reader, s *GameState) {
 }
 
 
-func calculateScore(s *GameState, actor_id int) int {
+func calculateScore(s *PointSalad, actor_id int) int {
 	score := 0
 
 	for _, point_card := range s.actor_data[actor_id].point_pile {
@@ -1018,160 +921,320 @@ func calculateScore(s *GameState, actor_id int) int {
 	return score
 }
 
-type PlayerActionType int
-const (
-	INVALID PlayerActionType = iota
-	PICK_FROM_MARKET PlayerActionType = iota
-	PICK_POINT_CARD_PILE PlayerActionType = iota
-)
-
-type PlayerAction struct {
-
-}
-
-type Connections struct {
-	alive []bool
-	conn []net.Conn
-	out []chan []byte 
-	in []chan []byte 
-}
-
-type Server struct {
-	connections Connections
-	state GameState
-}
 
 
 type Game interface {
-	init(player_num int)
-	update()
+	init(player_num int, bot_num int)
+	update(in map[int]chan []byte, out map[int]chan []byte)
 }
 
 
-func handleConnecion(connections Connections, conn_id int) {
-	var buf []byte
+type ActorActionType int
+const (
+	INVALID ActorActionType = iota
+	PICK_VEG_FROM_MARKET ActorActionType = iota
+	PICK_POINT_FROM_MARKET ActorActionType = iota
+	PICK_TO_SWAP ActorActionType = iota
+)
+type ActorAction struct {
+	kind ActorActionType
+	amount int
+	ids [2]int
+}
+
+func getMarketActionFromBot(s *PointSalad) ActorAction {
+
+	action := ActorAction{}
 	for true {
-		_, err := connections.conn[conn_id].conn.Read(buf)
-		if err != nil {
-			fmt.Println("ERROR: with conn_id = %d %s\n", err, conn_id)
+		if rand.Intn(2) == 0 {
+			action.kind = PICK_VEG_FROM_MARKET
+			action.amount = rand.Intn(2) + 1
+			for i := range action.amount {
+				action.ids[i] = rand.Intn(len(s.market))
+			}
+		} else {
+			action.kind = PICK_POINT_FROM_MARKET
+			action.amount = 1
+			action.ids[0] = rand.Intn(len(s.piles))
+		}
+		err := IsActionLegal(s, action)
+		if err == nil {
 			break
 		}
 	}
-	connections.conn[conn_id].alive = false
-	connections.conn[conn_id].conn.Close()
-	
+	return action
+}
+
+func getSwapActionFromBot(s *PointSalad) ActorAction {
+	assert(len(s.actor_data[s.active_actor].point_pile) > 0)
+
+	action := ActorAction{}
+	for true {
+		action.kind = PICK_TO_SWAP
+		action.amount = rand.Intn(2)
+
+		for i := range action.amount {
+			n := len(s.actor_data[s.active_actor].point_pile)
+			action.ids[i] = rand.Intn(n)
+		}
+
+		err := IsActionLegal(s, action)
+		if err == nil {
+			break
+		}
+	}
+	return action
 }
 
 
-func server_init(server *Server, port int, player_num int) {
-	ln, err := net.Listen("tcp", ":" + strconv.Itoa(port))
-	if err != nil {
-		fmt.Printf("Failed to listen to port %d: %s\n", port, err)
-	}
-	for len(server.conns) < player_num {
-		conn, err := ln.Accept()
-		if err != nil {
-			fmt.Printf("Failed to accept connection %s", err)
+
+func getMarketActionFromPlayer(s *PointSalad, in chan []byte, out chan []byte) ActorAction {
+	assert(in != nil)
+	assert(out != nil)
+
+	action := ActorAction{}
+	for true {
+		out <- []byte(fmt.Sprintf("pick 1 or 2 vegetables example: AB or\npick 1 point card example: 0\n"))
+		input := <- in
+
+		if input[0] >= '0' && input[0] <= '9' && input[1] == 0 {
+			index := int(input[0] - '0')
+			action = ActorAction{kind: PICK_POINT_FROM_MARKET, amount: 1, ids: [2]int{index, 0}}
+
+		} else if isWithinAtoF(input[0]) && input[1] == 0 {
+			index := int(input[0] - 'A')
+			action = ActorAction{kind: PICK_VEG_FROM_MARKET, amount: 1, ids: [2]int{index, 0}}
+			
+		} else if isWithinAtoF(input[0]) && isWithinAtoF(input[1]) && input[2] == 0 {
+			indicies := [2]int{int(input[0] - 'A'), int(input[1] - 'A')}
+			action = ActorAction{kind: PICK_VEG_FROM_MARKET, amount: 2, ids: indicies}
+
+		} else {
 			continue
 		}
-		server.conns = append(server.conns, Connection{alive: true, conn: conn, out: make(chan []byte), in: make(chan []byte)})
-	}
-	for i := range server.conns {
-		go handleConnecion(server.conns, i)
-	}
-}
-
-
-func init(state *GameState, player_num int) {
-
-	bot_num := 0
-
-	data, err := os.ReadFile("PointSaladManifest.json")
-	if err != nil {
-		log.Fatal(err)
-	}
-	
-	json_cards := JCards{}
-	
-	err = json.Unmarshal(data, &json_cards)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	{
-		game_state, err := createGameState(&json_cards, player_num, bot_num, 0)	
+		err := IsActionLegal(s, action)
 		if err != nil {
-			fmt.Printf("ERROR: Failed to create game state: %s\n", err)
-			return
-		}
-		*state = game_state
-	}
-}
-
-
-func update(state *GameState, in []chan PlayerAction, out []chan string) {
-	displayActorCards(state)
-	displayMarket(state)
-	// get decisions from actor
-	pickCardsFromMarket(reader, state)
-	pickCardToChangeToVeg(reader, state)
-
-
-	all_empty := true
-	for i := range state.piles {
-		if len(state.piles[i]) != 0 {
-			all_empty = false
+			out <- []byte(fmt.Sprintf("%v\n", err))
+		} else {
 			break
 		}
 	}
-	if all_empty {
-		type Score struct {
-			score int 
-			actor_id int
-		}
-		scores := []Score{}
-		
-		for i := range state.player_num + state.bot_num {
-			scores = append(scores, Score{score: calculateScore(state, i), actor_id: i})
-		}
+	return action
+}
 
-		slices.SortFunc(scores, func(a, b Score) int {
-			return a.score - b.score
-		})
-		
-		for i, s := range scores {
-			fmt.Printf("%d %d", s.score, s.actor_id)
-			if i == 0 {
-				fmt.Printf(" Winner\n")
-				} else {
-					fmt.Printf("\n")
+func getSwapActionFromPlayer(s *PointSalad, in chan []byte, out chan []byte) ActorAction {
+	assert(in != nil)
+	assert(out != nil)
+	assert(len(s.actor_data[s.active_actor].point_pile) > 0)
+
+	action := ActorAction{}
+	for true {
+		out <- []byte(fmt.Sprintf("pick 0-1 point card to flip to vegetable, type n to pick none example: 5\n"))
+		input := <- in
+
+		if input[0] == 'n' {
+			action = ActorAction{kind: PICK_TO_SWAP, amount: 0}
+		} else {
+			index, err := strconv.Atoi(string(input))
+			if err != nil {
+				out <- []byte(fmt.Sprintf("Expected a number or 'n'\n"))
+				continue
+			}
+			action = ActorAction{kind: PICK_TO_SWAP, amount: 1, ids: [2]int{index, 0}}
+		}
+		err := IsActionLegal(s, action)
+		if err != nil {
+			out <- []byte(fmt.Sprintf("%v\n", err))
+		} else {
+			break
+		}
+	}
+	return action
+}
+
+func IsActionLegal(s *PointSalad, action ActorAction) (error) {
+	switch (action.kind) {
+		case INVALID: return fmt.Errorf("Invalid action kind")
+		case PICK_VEG_FROM_MARKET: {
+			if action.amount < 1 || action.amount > 2 {
+				return fmt.Errorf("Amount of actions outside of range: %d", action.amount)
+			}
+			for i := range action.amount {
+				if action.ids[i] < 0 || action.ids[i] >= len(s.market) {
+					return fmt.Errorf("Cannot take card outside of market range")
+				}
+				if !s.market[action.ids[i]].has_card {
+					return fmt.Errorf("Cannot take card from empty market spot")
 				}
 			}
 		}
-		
-	// next player
-	state.active_actor += 1
-	state.active_actor %= state.player_num + state.bot_num
-	flipCardsFromPiles(state)
+		case PICK_POINT_FROM_MARKET: {
+			if action.amount != 1 {
+				return fmt.Errorf("Amount of actions outside of range: %d", action.amount)
+			}
+			if action.ids[0] < 0 || action.ids[0] >= len(s.piles) {
+				return fmt.Errorf("Cannot take card outside of pile range")
+			}
+			if len(s.piles[action.ids[0]]) == 0 {
+				return fmt.Errorf("Cannot take card from empty pile")
+			} 
+		}
+		case PICK_TO_SWAP: {
+			if action.amount < 0 || action.amount > 1 {
+				return fmt.Errorf("Amount of actions outside of range: %d", action.amount)
+			}
+			if action.amount == 1 {
+				if action.ids[0] < 0 || action.ids[0] >= len(s.actor_data[s.active_actor].point_pile) {
+					return fmt.Errorf("Cannot take card outside of pile range")
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func doAction(s *PointSalad, action ActorAction) {
+	assert(IsActionLegal(s, action) == nil)
+
+	switch (action.kind) {
+		case INVALID: panic("unreachable")
+		case PICK_VEG_FROM_MARKET: {
+			for i := range action.amount {
+				card := s.market[action.ids[i]].card
+				s.actor_data[s.active_actor].vegetable_num[card.Vegetable_type] += 1
+				s.market[action.ids[i]].has_card = false
+			}
+		} 
+		case PICK_POINT_FROM_MARKET: {
+			for i := range action.amount {
+				card := drawFromTop(s, action.ids[i])
+				s.actor_data[s.active_actor].point_pile = append(s.actor_data[s.active_actor].point_pile, card)
+			}
+		}
+		case PICK_TO_SWAP: {
+			if action.amount == 1 {
+				veg_type := s.actor_data[s.active_actor].point_pile[action.ids[0]].Vegetable_type
+				s.actor_data[s.active_actor].vegetable_num[int(veg_type)] += 1
+
+				// remove element
+				for i := action.ids[0]; i < len(s.actor_data[s.active_actor].point_pile) - 1; i += 1 {
+					s.actor_data[s.active_actor].point_pile[i] = s.actor_data[s.active_actor].point_pile[i + 1]
+				}
+				s.actor_data[s.active_actor].point_pile = s.actor_data[s.active_actor].point_pile[0:len(s.actor_data[s.active_actor].point_pile) - 1]
+			}
+		}
+	}
+}
+
+// should be called before doAction
+func BroadcastAction(s *PointSalad, action ActorAction, out map[int]chan []byte) {
+	broadcast_to_all(out, "---- Action ----\n")
+	switch (action.kind) {
+		case INVALID: panic("unreachable")
+		case PICK_VEG_FROM_MARKET: {
+			for i := range action.amount {
+				broadcast_to_all(out, fmt.Sprintf("Player %d drew %v from market\n", s.active_actor, s.market[action.ids[i]].card.Vegetable_type.String()))
+			}
+		}
+		case PICK_POINT_FROM_MARKET: {
+			for i := range action.amount {
+				pile := s.piles[action.ids[i]]
+				card := pile[len(pile) - 1]
+				criteria := getCriteriaString(s, card.Vegetable_type, card.Id)
+				broadcast_to_all(out, fmt.Sprintf("Player %d drew %v from market\n", s.active_actor, criteria))
+			}
+		}
+		case PICK_TO_SWAP: {
+			if action.amount == 0 {
+				broadcast_to_all(out, fmt.Sprintf("Player %d did not swap any card\n", s.active_actor))
+			} else {
+				for i := range action.amount {
+					card := s.actor_data[s.active_actor].point_pile[action.ids[i]]
+					criteria := getCriteriaString(s, card.Vegetable_type, card.Id)
+					broadcast_to_all(out, fmt.Sprintf("Player %d swapped %v to %v\n", s.active_actor, criteria, card.Vegetable_type))
+				}
+			}
+		}
+	}
 }
 
 
-func main() {
-	reader := bufio.NewReader(os.Stdin)
-	player_num, bot_num, err := getNumPlayerBotConfigInput(reader, "type number of players,bots example 1,1", 2, 6)
-	if err != nil {
-		log.Fatal(err)
-	}
-	reader.Close()
 
-	server := Server{}
-	server_init(&server, 8080, player_num)
-
-
-	init(&server.state, player_num, bot_num)
-
-
+func client_read(conn net.Conn) {
 	for true {
-		update(&server.state)
+		buf := make([]byte, SERVER_BYTE_SEND_SIZE, SERVER_BYTE_SEND_SIZE)
+		_, err := conn.Read(buf)
+		if err != nil {
+			log.Fatalf("%v\n", err)
+		}
+		length := 0
+		for i := range buf {
+			if buf[i] == 0 {
+				break
+			}
+			length += 1
+		}
+		fmt.Print(string(buf[0:length]))
+	}
+}
+
+func client_send(conn net.Conn) {
+	reader := bufio.NewReader(os.Stdin)
+	for true {
+		s, err := reader.ReadString('\n')
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		str := s[0: len(s) - 2]
+	
+		if len(str) > 0 && str[0] == 'q' {
+			conn.Close()
+			break
+		}
+
+		conn.Write([]byte(str))
+	}
+}
+
+func main() {
+	var is_server bool
+	var hostname string
+	var port string
+	var player_num int
+	var bot_num int
+
+
+	flag.BoolVar(&is_server, "server", false, "ex. -server")
+	flag.StringVar(&hostname, "hostname", "127.0.0.1", "ex. 127.0.0.1")
+	flag.StringVar(&port, "port", "8080", "ex. 8080")
+	flag.IntVar(&player_num, "players", 1, "ex. 2")
+	flag.IntVar(&bot_num, "bots", 1, "ex. 2")
+	flag.Parse()
+
+
+	log.Printf("is_server = %v, hostname = %v port = %v player_num = %v bot_num = %v\n", is_server, hostname, port, player_num, bot_num)
+	if is_server {
+		var game Game
+		game = &PointSalad{}
+		game.init(player_num, bot_num)
+
+		server := Server{}
+		server_init(&server, port, player_num)
+	
+	
+		for true {
+			game.update(server.connections.in, server.connections.out)
+		}
+		
+		server_close(&server)
+
+	} else {
+		conn, err := net.Dial("tcp", hostname + ":" + port)
+		if err != nil {
+			log.Fatalf("%s\n", err)
+		}
+		go client_read(conn)
+		client_send(conn)
 	}
 }
