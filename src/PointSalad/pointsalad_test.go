@@ -14,7 +14,7 @@ func initJson() {
 	if inited {
 		return
 	}
-	data, err := os.ReadFile("../GameStateManifest.json")
+	data, err := os.ReadFile("PointSaladManifest.json")
 	if err != nil {
 		log.Fatal(err)
 	}
