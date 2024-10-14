@@ -1,74 +1,36 @@
 package main
 
 import (
-	"net"
 	"log"
+	"net"
 )
 
-type Connections struct {
-	alive []bool
-	conn []net.Conn
-	out map[int]chan []byte 
-	in map[int]chan []byte 
+type TCPServer struct {
+	conn      []net.Conn
+	out       map[int]chan []byte
+	in        map[int]chan []byte
+	quitRead  map[int]chan bool
+	quitWrite map[int]chan bool
+
+	serverReceiveSize int
+	serverSendSize    int
+	listener          net.Listener
 }
 
-type Server struct {
-	connections Connections
-	listener net.Listener
-}
-
-func handleRead(connections Connections, conn_id int) {
-	buf := make([]byte, SERVER_BYTE_RECEIVE_SIZE, SERVER_BYTE_RECEIVE_SIZE)
-	for true {
-		read, err := connections.conn[conn_id].Read(buf)
-		if err != nil {
-			log.Printf("ERROR: conn_id = %d, read = %v, err = %s\n", conn_id, read, err)
-			break
-		}
-		connections.in[conn_id] <- buf
-		if !connections.alive[conn_id] {
-			break
-		}
-	}
-	if connections.alive[conn_id] {
-		connections.alive[conn_id] = false
-		connections.conn[conn_id].Close()
-	}
-}
-
-func handleWrite(connections Connections, conn_id int) {
-	buf := make([]byte, SERVER_BYTE_SEND_SIZE, SERVER_BYTE_SEND_SIZE)
-	for true {
-		buf = <- connections.out[conn_id]
-		if !connections.alive[conn_id] {
-			break
-		}
-		written, err := connections.conn[conn_id].Write(buf)
-		if err != nil {
-			log.Printf("ERROR: conn_id = %d, written = %v, err = %s\n", conn_id, written, err)
-			break
-		}
-	}
-	if connections.alive[conn_id] {
-		connections.alive[conn_id] = false
-		connections.conn[conn_id].Close()
-	}
-}
-
-func server_init(server *Server, port string, player_num int) {
+func (server *TCPServer) Init(port string, playerNum int) error {
 	log.Printf("listening on port %v\n", port)
-	log.Printf("Waiting for %d player(s)\n", player_num - len(server.connections.conn))
-	ln, err := net.Listen("tcp", ":" + port)
+	log.Printf("Waiting for %d player(s)\n", playerNum-len(server.conn))
+	ln, err := net.Listen("tcp", ":"+port)
 	if err != nil {
-		log.Fatalf("Failed to listen to port %v: %s\n", port, err)
+		return err
 	}
 	server.listener = ln
 	id := 0
 
-	server.connections.out = make(map[int]chan []byte)
-	server.connections.in = make(map[int]chan []byte)
+	server.out = make(map[int]chan []byte)
+	server.in = make(map[int]chan []byte)
 
-	for len(server.connections.conn) < player_num {
+	for len(server.conn) < playerNum {
 		conn, err := ln.Accept()
 		if err != nil {
 			log.Printf("Failed to accept connection %s", err)
@@ -76,17 +38,74 @@ func server_init(server *Server, port string, player_num int) {
 		}
 		addr := conn.RemoteAddr()
 		log.Printf("%s connected\n", addr.String())
-		log.Printf("Waiting for %d player(s)\n", player_num - len(server.connections.conn))
-		server.connections.alive = append(server.connections.alive, true)
-		server.connections.conn = append(server.connections.conn, conn)
-		server.connections.out[id] = make(chan []byte)
-		server.connections.in[id] = make(chan []byte)
-		go handleRead(server.connections, id)
-		go handleWrite(server.connections, id)
+		log.Printf("Waiting for %d player(s)\n", playerNum-len(server.conn))
+		server.conn = append(server.conn, conn)
+		server.out[id] = make(chan []byte)
+		server.in[id] = make(chan []byte)
+		go handleRead(server, id)
+		go handleWrite(server, id)
 		id += 1
+	}
+	return nil
+}
+
+func (s *TCPServer) Close() {
+	for k := range s.in {
+		s.conn[k].Close()
+	}
+	s.listener.Close()
+	for k := range s.in {
+		s.quitRead[k] <- true
+		s.quitWrite[k] <- true
+		close(s.in[k])
+		// closing out is probably not necessary
+		// close(s.out[k])
 	}
 }
 
-func server_close(server *Server) {
-	server.listener.Close()
+func (s *TCPServer) GetReadChannels() map[int]chan []byte {
+	return s.in
+}
+
+func (s *TCPServer) GetWriteChannels() map[int]chan []byte {
+	return s.out
+}
+
+func handleRead(s *TCPServer, connId int) {
+	running := true
+	for running {
+		buf := make([]byte, s.serverReceiveSize, s.serverReceiveSize)
+		read, err := s.conn[connId].Read(buf)
+		if err != nil {
+			running = false
+			log.Printf("ERROR: connId = %d, read = %v, err = %s\n", connId, read, err)
+		}
+		select {
+		case <-s.quitRead[connId]:
+			{
+				running = false
+			}
+
+		case s.in[connId] <- buf:
+		}
+	}
+}
+
+func handleWrite(s *TCPServer, connId int) {
+	running := true
+	var buf []byte
+	for running {
+		select {
+		case <-s.quitWrite[connId]:
+			{
+				running = false
+			}
+		case buf = <-s.out[connId]:
+		}
+		written, err := s.conn[connId].Write(buf)
+		if err != nil {
+			log.Printf("ERROR: connId = %d, written = %v, err = %s\n", connId, written, err)
+			break
+		}
+	}
 }

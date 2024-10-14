@@ -1,4 +1,4 @@
-module PointSalad
+module HomeExam
 
 go 1.23.0
 

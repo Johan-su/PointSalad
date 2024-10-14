@@ -1,36 +1,34 @@
 package main
+
 import (
-	"testing"
-	"os"
-	"log"
 	"encoding/json"
+	"log"
+	"os"
+	"testing"
 )
 
 var inited bool = false
 var json_cards JCards
 
 func initJson() {
-	if (inited) {
+	if inited {
 		return
 	}
-	data, err := os.ReadFile("../PointSaladManifest.json")
+	data, err := os.ReadFile("../GameStateManifest.json")
 	if err != nil {
 		log.Fatal(err)
 	}
-	
-	
+
 	err = json.Unmarshal(data, &json_cards)
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
-
-
 // ---- Requirement 1 ----
 func CorrectPlayerAmount(t *testing.T, expected bool, player_num int, bot_num int) {
 	s, err := createGameState(&json_cards, player_num, bot_num, 0)
-	bool value = err != nil
+	value := err != nil
 	if expected != value {
 		t.Errorf("Expected %v got %v with %v %v\n", expected, value, player_num, bot_num)
 	}
@@ -38,7 +36,11 @@ func CorrectPlayerAmount(t *testing.T, expected bool, player_num int, bot_num in
 
 func TestPlayerAmount(t *testing.T) {
 	initJson()
-	test_table := []struct{expected bool, player_num int, bot_num int} {
+	test_table := []struct {
+		expected   bool
+		player_num int
+		bot_num    int
+	}{
 		{false, -1, -1},
 		// players
 		{false, 0, 0},
@@ -58,7 +60,7 @@ func TestPlayerAmount(t *testing.T) {
 		{true, 0, 5},
 		{true, 0, 6},
 		{false, 0, 7},
-		{false, 0, 8}
+		{false, 0, 8},
 	}
 	for _, test := range test_table {
 
@@ -71,7 +73,7 @@ func CorrectParsing(t *testing.T, criteria string, expected Criteria) {
 	if err != nil {
 		t.Errorf("Error parsing %s, %s", criteria, err)
 		return
-	} 
+	}
 	if c != expected {
 		t.Errorf("%s %v not equal to %v", criteria, c, expected)
 	}
@@ -80,37 +82,40 @@ func CorrectParsing(t *testing.T, criteria string, expected Criteria) {
 func TestCriteriaParsing(t *testing.T) {
 	initJson()
 
-	test_table := []struct{criteria_str string; expected Criteria} {
-		{"MOST LETTUCE = 10",      Criteria{criteria_type: MOST, veg_count: [6]int{0, 1, 0, 0, 0, 0}, single_score: 10}},
-		{"MOST PEPPER = 10",       Criteria{criteria_type: MOST, veg_count: [6]int{1, 0, 0, 0, 0, 0}, single_score: 10}},
-		{"MOST CABBAGE = 10",      Criteria{criteria_type: MOST, veg_count: [6]int{0, 0, 0, 1, 0, 0}, single_score: 10}},
-		{"MOST CARROT = 10",       Criteria{criteria_type: MOST, veg_count: [6]int{0, 0, 1, 0, 0, 0}, single_score: 10}},
-		{"MOST TOMATO = 10",       Criteria{criteria_type: MOST, veg_count: [6]int{0, 0, 0, 0, 0, 1}, single_score: 10}},
-		{"MOST ONION = 10",        Criteria{criteria_type: MOST, veg_count: [6]int{0, 0, 0, 0, 1, 0}, single_score: 10}},
-		{"FEWEST LETTUCE = 7",     Criteria{criteria_type: FEWEST, veg_count: [6]int{0, 1, 0, 0, 0, 0}, single_score: 7}},
-		{"FEWEST PEPPER = 7",      Criteria{criteria_type: FEWEST, veg_count: [6]int{1, 0, 0, 0, 0, 0}, single_score: 7}},
-		{"FEWEST CABBAGE = 7",     Criteria{criteria_type: FEWEST, veg_count: [6]int{0, 0, 0, 1, 0, 0}, single_score: 7}},
-		{"FEWEST CARROT = 7",      Criteria{criteria_type: FEWEST, veg_count: [6]int{0, 0, 1, 0, 0, 0}, single_score: 7}},
-		{"FEWEST TOMATO = 7",      Criteria{criteria_type: FEWEST, veg_count: [6]int{0, 0, 0, 0, 0, 1}, single_score: 7}},
-		{"FEWEST ONION = 7",       Criteria{criteria_type: FEWEST, veg_count: [6]int{0, 0, 0, 0, 1, 0}, single_score: 7}},
+	test_table := []struct {
+		criteria_str string
+		expected     Criteria
+	}{
+		{"MOST LETTUCE = 10", Criteria{criteria_type: MOST, veg_count: [6]int{0, 1, 0, 0, 0, 0}, single_score: 10}},
+		{"MOST PEPPER = 10", Criteria{criteria_type: MOST, veg_count: [6]int{1, 0, 0, 0, 0, 0}, single_score: 10}},
+		{"MOST CABBAGE = 10", Criteria{criteria_type: MOST, veg_count: [6]int{0, 0, 0, 1, 0, 0}, single_score: 10}},
+		{"MOST CARROT = 10", Criteria{criteria_type: MOST, veg_count: [6]int{0, 0, 1, 0, 0, 0}, single_score: 10}},
+		{"MOST TOMATO = 10", Criteria{criteria_type: MOST, veg_count: [6]int{0, 0, 0, 0, 0, 1}, single_score: 10}},
+		{"MOST ONION = 10", Criteria{criteria_type: MOST, veg_count: [6]int{0, 0, 0, 0, 1, 0}, single_score: 10}},
+		{"FEWEST LETTUCE = 7", Criteria{criteria_type: FEWEST, veg_count: [6]int{0, 1, 0, 0, 0, 0}, single_score: 7}},
+		{"FEWEST PEPPER = 7", Criteria{criteria_type: FEWEST, veg_count: [6]int{1, 0, 0, 0, 0, 0}, single_score: 7}},
+		{"FEWEST CABBAGE = 7", Criteria{criteria_type: FEWEST, veg_count: [6]int{0, 0, 0, 1, 0, 0}, single_score: 7}},
+		{"FEWEST CARROT = 7", Criteria{criteria_type: FEWEST, veg_count: [6]int{0, 0, 1, 0, 0, 0}, single_score: 7}},
+		{"FEWEST TOMATO = 7", Criteria{criteria_type: FEWEST, veg_count: [6]int{0, 0, 0, 0, 0, 1}, single_score: 7}},
+		{"FEWEST ONION = 7", Criteria{criteria_type: FEWEST, veg_count: [6]int{0, 0, 0, 0, 1, 0}, single_score: 7}},
 		{"LETTUCE: EVEN=7, ODD=3", Criteria{criteria_type: EVEN_ODD, veg_count: [6]int{0, 1, 0, 0, 0, 0}, even_score: 7, odd_score: 3}},
-		{"PEPPER: EVEN=7, ODD=3",  Criteria{criteria_type: EVEN_ODD, veg_count: [6]int{1, 0, 0, 0, 0, 0}, even_score: 7, odd_score: 3}},
+		{"PEPPER: EVEN=7, ODD=3", Criteria{criteria_type: EVEN_ODD, veg_count: [6]int{1, 0, 0, 0, 0, 0}, even_score: 7, odd_score: 3}},
 		{"CABBAGE: EVEN=7, ODD=3", Criteria{criteria_type: EVEN_ODD, veg_count: [6]int{0, 0, 0, 1, 0, 0}, even_score: 7, odd_score: 3}},
-		{"CARROT: EVEN=7, ODD=3",  Criteria{criteria_type: EVEN_ODD, veg_count: [6]int{0, 0, 1, 0, 0, 0}, even_score: 7, odd_score: 3}},
-		{"TOMATO: EVEN=7, ODD=3",  Criteria{criteria_type: EVEN_ODD, veg_count: [6]int{0, 0, 0, 0, 0, 1}, even_score: 7, odd_score: 3}},
-		{"ONION: EVEN=7, ODD=3",   Criteria{criteria_type: EVEN_ODD, veg_count: [6]int{0, 0, 0, 0, 1, 0}, even_score: 7, odd_score: 3}},
-		{"2 / LETTUCE",            Criteria{criteria_type: PER, per_scores: [6]int{0, 2, 0, 0, 0, 0}}},
-		{"2 / PEPPER",             Criteria{criteria_type: PER, per_scores: [6]int{2, 0, 0, 0, 0, 0}}},
-		{"2 / CABBAGE",            Criteria{criteria_type: PER, per_scores: [6]int{0, 0, 0, 2, 0, 0}}},
-		{"2 / CARROT",             Criteria{criteria_type: PER, per_scores: [6]int{0, 0, 2, 0, 0, 0}}},
-		{"2 / TOMATO",             Criteria{criteria_type: PER, per_scores: [6]int{0, 0, 0, 0, 0, 2}}},
-		{"2 / ONION",              Criteria{criteria_type: PER, per_scores: [6]int{0, 0, 0, 0, 2, 0}}},
-		{"LETTUCE + LETTUCE = 5",  Criteria{criteria_type: SUM, veg_count: [6]int{0, 2, 0, 0, 0, 0}, single_score: 5}},
-		{"PEPPER + PEPPER = 5",    Criteria{criteria_type: SUM, veg_count: [6]int{2, 0, 0, 0, 0, 0}, single_score: 5}},
-		{"CABBAGE + CABBAGE = 5",  Criteria{criteria_type: SUM, veg_count: [6]int{0, 0, 0, 2, 0, 0}, single_score: 5}},
-		{"CARROT + CARROT = 5",    Criteria{criteria_type: SUM, veg_count: [6]int{0, 0, 2, 0, 0, 0}, single_score: 5}},
-		{"TOMATO + TOMATO = 5",    Criteria{criteria_type: SUM, veg_count: [6]int{0, 0, 0, 0, 0, 2}, single_score: 5}},
-		{"ONION + ONION = 5",      Criteria{criteria_type: SUM, veg_count: [6]int{0, 0, 0, 0, 2, 0}, single_score: 5}},
+		{"CARROT: EVEN=7, ODD=3", Criteria{criteria_type: EVEN_ODD, veg_count: [6]int{0, 0, 1, 0, 0, 0}, even_score: 7, odd_score: 3}},
+		{"TOMATO: EVEN=7, ODD=3", Criteria{criteria_type: EVEN_ODD, veg_count: [6]int{0, 0, 0, 0, 0, 1}, even_score: 7, odd_score: 3}},
+		{"ONION: EVEN=7, ODD=3", Criteria{criteria_type: EVEN_ODD, veg_count: [6]int{0, 0, 0, 0, 1, 0}, even_score: 7, odd_score: 3}},
+		{"2 / LETTUCE", Criteria{criteria_type: PER, per_scores: [6]int{0, 2, 0, 0, 0, 0}}},
+		{"2 / PEPPER", Criteria{criteria_type: PER, per_scores: [6]int{2, 0, 0, 0, 0, 0}}},
+		{"2 / CABBAGE", Criteria{criteria_type: PER, per_scores: [6]int{0, 0, 0, 2, 0, 0}}},
+		{"2 / CARROT", Criteria{criteria_type: PER, per_scores: [6]int{0, 0, 2, 0, 0, 0}}},
+		{"2 / TOMATO", Criteria{criteria_type: PER, per_scores: [6]int{0, 0, 0, 0, 0, 2}}},
+		{"2 / ONION", Criteria{criteria_type: PER, per_scores: [6]int{0, 0, 0, 0, 2, 0}}},
+		{"LETTUCE + LETTUCE = 5", Criteria{criteria_type: SUM, veg_count: [6]int{0, 2, 0, 0, 0, 0}, single_score: 5}},
+		{"PEPPER + PEPPER = 5", Criteria{criteria_type: SUM, veg_count: [6]int{2, 0, 0, 0, 0, 0}, single_score: 5}},
+		{"CABBAGE + CABBAGE = 5", Criteria{criteria_type: SUM, veg_count: [6]int{0, 0, 0, 2, 0, 0}, single_score: 5}},
+		{"CARROT + CARROT = 5", Criteria{criteria_type: SUM, veg_count: [6]int{0, 0, 2, 0, 0, 0}, single_score: 5}},
+		{"TOMATO + TOMATO = 5", Criteria{criteria_type: SUM, veg_count: [6]int{0, 0, 0, 0, 0, 2}, single_score: 5}},
+		{"ONION + ONION = 5", Criteria{criteria_type: SUM, veg_count: [6]int{0, 0, 0, 0, 2, 0}, single_score: 5}},
 		{"CARROT + ONION = 5", Criteria{criteria_type: SUM, veg_count: [6]int{0, 0, 1, 0, 1, 0}, single_score: 5}},
 		{"CABBAGE + ONION = 5", Criteria{criteria_type: SUM, veg_count: [6]int{0, 0, 0, 1, 1, 0}, single_score: 5}},
 		{"TOMATO + LETTUCE = 5", Criteria{criteria_type: SUM, veg_count: [6]int{0, 1, 0, 0, 0, 1}, single_score: 5}},
@@ -189,7 +194,6 @@ func TestCriteriaParsing(t *testing.T) {
 		{"5 / MISSING VEGETABLE TYPE", Criteria{criteria_type: PER_MISSING_TYPE, single_score: 5}},
 		{"3 / VEGETABLE TYPE >=2", Criteria{criteria_type: PER_TYPE_GREATER_THAN_EQ, single_score: 3, greater_than_eq_value: 2}},
 		{"COMPLETE SET = 12", Criteria{criteria_type: COMPLETE_SET, single_score: 12}},
-		
 	}
 
 	for _, test := range test_table {
@@ -201,9 +205,9 @@ func TestCriteriaParsing(t *testing.T) {
 
 func CorrectVegetableAmount(t *testing.T, actor_num int, expected_num_of_vegetable_per_type int) {
 	s := createGameState(json_cards, 0, actor_num, 0)
-	
+
 	vegetable_nums := [VEGETABLE_TYPE_NUM]int{}
-	
+
 	for i1, pile := range s.piles {
 		for j1, card := range pile {
 			vegetable_nums[int(card.Vegetable_type)] += 1
@@ -219,7 +223,7 @@ func CorrectVegetableAmount(t *testing.T, actor_num int, expected_num_of_vegetab
 			}
 		}
 	}
-	
+
 	for i, vegetable_num := range vegetable_nums {
 		if vegetable_num != expected_num_of_vegetable_per_type {
 			t.Errorf("Expected %d %v got %d", expected_num_of_vegetable_per_type, VegType(i), vegetable_num)
@@ -227,11 +231,12 @@ func CorrectVegetableAmount(t *testing.T, actor_num int, expected_num_of_vegetab
 	}
 }
 
-
-
 func TestCorrectVegetables(t *testing.T) {
 	initJson()
-	test_table := []struct{actor_num int; expected_num_of_vegetable_per_type int} {
+	test_table := []struct {
+		actor_num                          int
+		expected_num_of_vegetable_per_type int
+	}{
 		{2, 6},
 		{3, 9},
 		{4, 12},
@@ -244,8 +249,3 @@ func TestCorrectVegetables(t *testing.T) {
 }
 
 // ---- End ----
-
-
-
-
-
