@@ -92,79 +92,83 @@ func (state *GameState) Init(playerNum int, botNum int) {
 }
 
 func (state *GameState) RunHost(in map[int]chan []byte, out map[int]chan []byte) {
-	flipCardsFromPiles(state)
-	displayActorCards(state, out[state.activeActor])
-	displayMarket(state, out)
-	// get decisions from actor
-
-	is_bot := in[state.activeActor] == nil
-
-	var market_action ActorAction
-	if is_bot {
-		market_action = getMarketActionFromBot(state)
-	} else {
-		market_action = getMarketActionFromPlayer(state, in[state.activeActor], out[state.activeActor])
-	}
-	BroadcastAction(state, market_action, out)
-	doAction(state, market_action)
-
-	displayActorCards(state, out[state.activeActor])
-
-	if len(state.actorData[state.activeActor].pointPile) > 0 {
-		var swap_action ActorAction
+	for true {
+		flipCardsFromPiles(state)
+		displayActorCards(state, out[state.activeActor])
+		displayMarket(state, out)
+		// get decisions from actor
+	
+		is_bot := in[state.activeActor] == nil
+	
+		var market_action ActorAction
 		if is_bot {
-			swap_action = getSwapActionFromBot(state)
+			market_action = getMarketActionFromBot(state)
 		} else {
-			swap_action = getSwapActionFromPlayer(state, in[state.activeActor], out[state.activeActor])
+			market_action = getMarketActionFromPlayer(state, in[state.activeActor], out[state.activeActor])
 		}
-		BroadcastAction(state, swap_action, out)
-		doAction(state, swap_action)
-	}
-	// show hand to players
-	for _, v := range out {
-		displayActorCards(state, v)
-	}
-
-	// check win condition
-	all_empty := true
-	for i := range state.piles {
-		if len(state.piles[i]) != 0 {
-			all_empty = false
-			break
-		}
-	}
-	// print winner if all piles are empty
-	if all_empty {
-		type Score struct {
-			score   int
-			actorId int
-		}
-		scores := []Score{}
-
-		for i := range state.playerNum + state.botNum {
-			scores = append(scores, Score{score: calculateScore(state, i), actorId: i})
-		}
-
-		slices.SortFunc(scores, func(a, b Score) int {
-			return a.score - b.score
-		})
-
-		for i, s := range scores {
-			broadcast_to_all(out, fmt.Sprintf("%d %d", s.score, s.actorId))
-			if i == 0 {
-				broadcast_to_all(out, " Winner\n")
+		BroadcastAction(state, market_action, out)
+		doAction(state, market_action)
+	
+		displayActorCards(state, out[state.activeActor])
+	
+		if len(state.actorData[state.activeActor].pointPile) > 0 {
+			var swap_action ActorAction
+			if is_bot {
+				swap_action = getSwapActionFromBot(state)
 			} else {
-				broadcast_to_all(out, "\n")
+				swap_action = getSwapActionFromPlayer(state, in[state.activeActor], out[state.activeActor])
+			}
+			BroadcastAction(state, swap_action, out)
+			doAction(state, swap_action)
+		}
+		// show hand to players
+		for _, v := range out {
+			displayActorCards(state, v)
+		}
+	
+		// check win condition
+		all_empty := true
+		for i := range state.piles {
+			if len(state.piles[i]) != 0 {
+				all_empty = false
+				break
 			}
 		}
+		// print winner if all piles are empty
+		if all_empty {
+			type Score struct {
+				score   int
+				actorId int
+			}
+			scores := []Score{}
+	
+			for i := range state.playerNum + state.botNum {
+				scores = append(scores, Score{score: calculateScore(state, i), actorId: i})
+			}
+	
+			slices.SortFunc(scores, func(a, b Score) int {
+				return a.score - b.score
+			})
+			// TODO: maybe handle ties
+			for i, s := range scores {
+				broadcast_to_all(out, fmt.Sprintf("%d %d", s.score, s.actorId))
+				if i == 0 {
+					broadcast_to_all(out, " Winner\n")
+				} else {
+					broadcast_to_all(out, "\n")
+				}
+			}
+			break
+		}
+	
+		// next actor
+		state.activeActor += 1
+		state.activeActor %= state.playerNum + state.botNum
 	}
-
-	// next actor
-	state.activeActor += 1
-	state.activeActor %= state.playerNum + state.botNum
 }
 
 func (state *GameState) RunPlayer(in chan []byte, out chan []byte) {
+	
 	assert(false)
 }
 
