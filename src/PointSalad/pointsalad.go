@@ -9,6 +9,8 @@ import (
 	"os"
 	"slices"
 	"strconv"
+	"strings"
+	"bufio"
 )
 
 type VegType int
@@ -23,13 +25,13 @@ const (
 	ONION  VegType = iota
 	TOMATO VegType = iota
 
-	VEGETABLE_TYPE_NUM = iota
+	vegetableTypeNum = iota
 )
 
 const (
 	playPilesNum          = 3
-	serverByteReceiveSize = 8
-	serverByteSendSize    = 512
+	serverByteReceiveSize = 4
+	serverByteSendSize    = 1024
 )
 
 type Card struct {
@@ -38,7 +40,7 @@ type Card struct {
 }
 
 type ActorData struct {
-	vegetableNum [VEGETABLE_TYPE_NUM]int
+	vegetableNum [vegetableTypeNum]int
 	pointPile    []Card
 }
 
@@ -74,15 +76,15 @@ func (state *GameState) Init(playerNum int, botNum int) {
 		log.Fatal(err)
 	}
 
-	json_cards := JCards{}
+	jsonCards := JCards{}
 
-	err = json.Unmarshal(data, &json_cards)
+	err = json.Unmarshal(data, &jsonCards)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	{
-		game_state, err := createGameState(&json_cards, playerNum, botNum, 0)
+		game_state, err := createGameState(&jsonCards, playerNum, botNum, 0)
 		if err != nil {
 			log.Fatalf("ERROR: Failed to create game state: %s\n", err)
 			return
@@ -94,70 +96,41 @@ func (state *GameState) Init(playerNum int, botNum int) {
 func (state *GameState) RunHost(in map[int]chan []byte, out map[int]chan []byte) {
 	for true {
 		flipCardsFromPiles(state)
-		displayActorCards(state, out[state.activeActor])
-		displayMarket(state, out)
-		// get decisions from actor
-	
 		is_bot := in[state.activeActor] == nil
-	
+		
+		// get decisions from actor
 		var market_action ActorAction
 		if is_bot {
 			market_action = getMarketActionFromBot(state)
 		} else {
+			out[state.activeActor] <- []byte(getActorDataString(state, state.activeActor))
+			out[state.activeActor] <- []byte(getMarketString(state))
 			market_action = getMarketActionFromPlayer(state, in[state.activeActor], out[state.activeActor])
 		}
 		BroadcastAction(state, market_action, out)
 		doAction(state, market_action)
 	
-		displayActorCards(state, out[state.activeActor])
-	
+		
 		if len(state.actorData[state.activeActor].pointPile) > 0 {
 			var swap_action ActorAction
 			if is_bot {
 				swap_action = getSwapActionFromBot(state)
 			} else {
+				out[state.activeActor] <- []byte(getActorDataString(state, state.activeActor))
 				swap_action = getSwapActionFromPlayer(state, in[state.activeActor], out[state.activeActor])
 			}
 			BroadcastAction(state, swap_action, out)
 			doAction(state, swap_action)
 		}
-		// show hand to players
-		for _, v := range out {
-			displayActorCards(state, v)
-		}
-	
-		// check win condition
-		all_empty := true
-		for i := range state.piles {
-			if len(state.piles[i]) != 0 {
-				all_empty = false
-				break
+		// show hand to other players
+		for i, v := range out {
+			if i != state.activeActor {
+				v <- []byte(getActorDataString(state, i))
 			}
 		}
-		// print winner if all piles are empty
-		if all_empty {
-			type Score struct {
-				score   int
-				actorId int
-			}
-			scores := []Score{}
 	
-			for i := range state.playerNum + state.botNum {
-				scores = append(scores, Score{score: calculateScore(state, i), actorId: i})
-			}
-	
-			slices.SortFunc(scores, func(a, b Score) int {
-				return a.score - b.score
-			})
-			// TODO: maybe handle ties
-			for i, s := range scores {
-				broadcast_to_all(out, fmt.Sprintf("%d %d", s.score, s.actorId))
-				if i == 0 {
-					broadcast_to_all(out, " Winner\n")
-				} else {
-					broadcast_to_all(out, "\n")
-				}
-			}
+		if hasWon(state) {
+			broadcastWinner(state, out)
 			break
 		}
 	
@@ -165,11 +138,81 @@ func (state *GameState) RunHost(in map[int]chan []byte, out map[int]chan []byte)
 		state.activeActor += 1
 		state.activeActor %= state.playerNum + state.botNum
 	}
+} 
+
+func (_ *GameState) RunPlayer(in chan []byte, out chan []byte) {
+	assert(in != nil)
+	assert(out != nil)
+
+	r := bufio.NewReader(os.Stdin)
+	for true {
+		data := <- in
+		fmt.Printf("%s", string(data))
+		if expectResponse(data) {
+			var str string
+			{
+				s, err := r.ReadString('\n')
+				if err != nil {
+					log.Fatalf("read string does not end in \\n somehow or EOF")
+				}
+				// should work for linux/macos too
+				s = strings.TrimSuffix(s, "\n")
+				s = strings.TrimSuffix(s, "\r")
+				str = s
+			}
+			out <- []byte(str)
+		}
+	}
 }
 
-func (state *GameState) RunPlayer(in chan []byte, out chan []byte) {
-	
-	assert(false)
+func (_ *GameState) GetMaxHostDataSize() int {
+	return serverByteReceiveSize
+}
+
+func (_ *GameState) GetMaxPlayerDataSize() int {
+	return serverByteSendSize
+}
+
+func expectResponse(data []byte) bool {
+	return strings.Contains(string(data), "pick")
+}
+
+func hasWon(state *GameState) bool {
+	// winner if all piles are empty
+	for i := range state.piles {
+		if len(state.piles[i]) != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func broadcastWinner(state *GameState, out map[int]chan []byte) {
+	type Score struct {
+		score   int
+		actorId int
+	}
+	scores := []Score{}
+
+	for i := range state.playerNum + state.botNum {
+		scores = append(scores, Score{score: calculateScore(state, i), actorId: i})
+	}
+
+	slices.SortFunc(scores, func(a, b Score) int {
+		return b.score - a.score
+	})
+
+	highScore := scores[0].score
+
+	broadcastToAll(out, fmt.Sprintf("---- WINNER ----\n"))
+	for _, s := range scores {
+		broadcastToAll(out, fmt.Sprintf("Player %d with score %d", s.actorId, s.score, ))
+		if s.score == highScore {
+			broadcastToAll(out, " Winner\n")
+		} else {
+			broadcastToAll(out, "\n")
+		}
+	}
 }
 
 func assert(c bool) {
@@ -179,7 +222,7 @@ func assert(c bool) {
 	}
 }
 
-func createGameState(json_cards *JCards, playerNum int, botNum int, seed int64) (GameState, error) {
+func createGameState(jsonCards *JCards, playerNum int, botNum int, seed int64) (GameState, error) {
 	actorNum := playerNum + botNum
 	assert(actorNum >= 2 && actorNum <= 6)
 
@@ -187,19 +230,19 @@ func createGameState(json_cards *JCards, playerNum int, botNum int, seed int64) 
 	rand.Seed(seed)
 
 	var ids []int
-	for id, _ := range json_cards.Cards {
+	for id, _ := range jsonCards.Cards {
 		ids = append(ids, id)
 	}
 
-	per_vegetable_num := actorNum * 3
+	perVegetableNum := actorNum * 3
 	var deck []Card
 
-	for i := range VEGETABLE_TYPE_NUM {
+	for i := range vegetableTypeNum {
 		rand.Shuffle(len(ids), func(i int, j int) {
 			ids[i], ids[j] = ids[j], ids[i]
 		})
 
-		for j := 0; j < per_vegetable_num; j += 1 {
+		for j := 0; j < perVegetableNum; j += 1 {
 			card := Card{
 				id:      ids[j],
 				vegType: VegType(i),
@@ -215,7 +258,7 @@ func createGameState(json_cards *JCards, playerNum int, botNum int, seed int64) 
 
 	s := GameState{}
 
-	for _, card := range json_cards.Cards {
+	for _, card := range jsonCards.Cards {
 		s.strCriterias = append(s.strCriterias, card.Criteria.PEPPER)
 		s.strCriterias = append(s.strCriterias, card.Criteria.LETTUCE)
 		s.strCriterias = append(s.strCriterias, card.Criteria.CARROT)
@@ -224,11 +267,12 @@ func createGameState(json_cards *JCards, playerNum int, botNum int, seed int64) 
 		s.strCriterias = append(s.strCriterias, card.Criteria.TOMATO)
 	}
 
-	table, err := createCriteriaTable(json_cards)
+	table, err := createCriteriaTable(jsonCards)
 	if err != nil {
 		return GameState{}, err
 	}
 	s.criteriaTable = table
+
 
 	pile_size := len(deck) / playPilesNum
 	pile_size_remainder := len(deck) % playPilesNum
@@ -249,6 +293,44 @@ func createGameState(json_cards *JCards, playerNum int, botNum int, seed int64) 
 	return s, nil
 }
 
+func deepCloneGameState(s *GameState) GameState {
+	new := GameState{}
+
+	for i := range s.strCriterias {
+		new.strCriterias = append(new.strCriterias, s.strCriterias[i])
+	}
+
+	for i := range s.criteriaTable {
+		new.criteriaTable = append(new.criteriaTable, s.criteriaTable[i])
+	}
+
+	for i := range s.piles {
+		new.piles = append(new.piles, []Card{})
+		for j := range s.piles[i] {
+			new.piles[i] = append(new.piles[i], s.piles[i][j])
+		}
+	}
+	new.market = s.market
+
+	for i := range s.actorData {
+		new.actorData = append(new.actorData, ActorData{})
+		new.actorData[i].vegetableNum = s.actorData[i].vegetableNum
+		for j := range s.actorData[i].pointPile {
+			new.actorData[i].pointPile = append(new.actorData[i].pointPile, s.actorData[i].pointPile[j])			
+		}
+	}
+
+	new.activeActor = s.activeActor
+	new.playerNum = s.playerNum
+	new.botNum = s.botNum
+
+
+	assert(fmt.Sprintf("%v", new) == fmt.Sprintf("%v", *s))
+
+
+	return new
+}
+
 type ActorActionType int
 
 const (
@@ -265,9 +347,9 @@ type ActorAction struct {
 }
 
 func getMarketActionFromBot(s *GameState) ActorAction {
-
-	action := ActorAction{}
+	var action ActorAction
 	for true {
+		action = ActorAction{}
 		if rand.Intn(2) == 0 {
 			action.kind = PICK_VEG_FROM_MARKET
 			action.amount = rand.Intn(2) + 1
@@ -281,7 +363,17 @@ func getMarketActionFromBot(s *GameState) ActorAction {
 		}
 		err := IsActionLegal(s, action)
 		if err == nil {
-			break
+			beforeScore := calculateScore(s, s.activeActor)
+
+			new_s := deepCloneGameState(s)
+			
+			doAction(&new_s, action)
+	
+			AfterScore := calculateScore(&new_s, new_s.activeActor)
+	
+			if AfterScore >= beforeScore {
+				break
+			}
 		}
 	}
 	return action
@@ -302,7 +394,17 @@ func getSwapActionFromBot(s *GameState) ActorAction {
 
 		err := IsActionLegal(s, action)
 		if err == nil {
-			break
+			beforeScore := calculateScore(s, s.activeActor)
+
+			new_s := deepCloneGameState(s)
+			
+			doAction(&new_s, action)
+	
+			AfterScore := calculateScore(&new_s, new_s.activeActor)
+	
+			if AfterScore >= beforeScore {
+				break
+			}
 		}
 	}
 	return action
@@ -317,15 +419,15 @@ func getMarketActionFromPlayer(s *GameState, in chan []byte, out chan []byte) Ac
 		out <- []byte(fmt.Sprintf("pick 1 or 2 vegetables example: AB or\npick 1 point card example: 0\n"))
 		input := <-in
 
-		if input[0] >= '0' && input[0] <= '9' && input[1] == 0 {
+		if len(input) == 1 && input[0] >= '0' && input[0] <= '9' {
 			index := int(input[0] - '0')
 			action = ActorAction{kind: PICK_POINT_FROM_MARKET, amount: 1, ids: [2]int{index, 0}}
 
-		} else if isWithinAtoF(input[0]) && input[1] == 0 {
+		} else if len(input) == 1 && isWithinAtoF(input[0]) {
 			index := int(input[0] - 'A')
 			action = ActorAction{kind: PICK_VEG_FROM_MARKET, amount: 1, ids: [2]int{index, 0}}
 
-		} else if isWithinAtoF(input[0]) && isWithinAtoF(input[1]) && input[2] == 0 {
+		} else if len(input) == 2 && isWithinAtoF(input[0]) && isWithinAtoF(input[1]) {
 			indicies := [2]int{int(input[0] - 'A'), int(input[1] - 'A')}
 			action = ActorAction{kind: PICK_VEG_FROM_MARKET, amount: 2, ids: indicies}
 
@@ -454,7 +556,7 @@ func doAction(s *GameState, action ActorAction) {
 	}
 }
 
-func broadcast_to_all(out map[int]chan []byte, str string) {
+func broadcastToAll(out map[int]chan []byte, str string) {
 	fmt.Print(str)
 	for _, value := range out {
 		value <- []byte(str)
@@ -462,26 +564,29 @@ func broadcast_to_all(out map[int]chan []byte, str string) {
 }
 
 func getCriteriaString(s *GameState, veg_type VegType, id int) string {
-	return s.strCriterias[int(veg_type)+id*VEGETABLE_TYPE_NUM]
+	return s.strCriterias[int(veg_type)+id*vegetableTypeNum]
 }
 
-func displayMarket(s *GameState, out map[int]chan []byte) {
-	broadcast_to_all(out, fmt.Sprintf("---- MARKET ----\n"))
+
+func getMarketString(s *GameState) string {
+	builder := strings.Builder{}
+	builder.WriteString("---- MARKET ----\n")
 	for i, cardspot := range s.market {
 		if cardspot.hasCard {
 			card := cardspot.card
-			broadcast_to_all(out, fmt.Sprintf("[%c] %v\n", i+'A', card.vegType))
+			builder.WriteString(fmt.Sprintf("[%c] %v\n", i+'A', card.vegType))
 		}
 	}
-	fmt.Println("piles")
+	builder.WriteString("piles:\n")
 	for i, pile := range s.piles {
 		if len(pile) > 0 {
 			top_card := pile[len(pile)-1]
-			broadcast_to_all(out, fmt.Sprintf("[%d] %s\n", i, getCriteriaString(s, top_card.vegType, top_card.id)))
+			builder.WriteString(fmt.Sprintf("[%d] %s\n", i, getCriteriaString(s, top_card.vegType, top_card.id)))
 		} else {
-			broadcast_to_all(out, "\n")
+			builder.WriteString("\n")
 		}
 	}
+	return builder.String()
 }
 
 func drawFromTop(s *GameState, pile_index int) Card {
@@ -499,8 +604,8 @@ func drawFromBot(s *GameState, pile_index int) Card {
 }
 
 func getMaxPileIndex(s *GameState) int {
-	max := len(s.piles[0])
-	index := 0
+	max := 0  
+	index := -1
 
 	for i, p := range s.piles {
 		if len(p) > max {
@@ -512,22 +617,24 @@ func getMaxPileIndex(s *GameState) int {
 	return index
 }
 
-func displayActorCards(s *GameState, out chan []byte) {
+func getActorDataString(s *GameState, actorId int) string {
 	assert(s.activeActor < len(s.actorData))
-	out <- []byte(fmt.Sprintf("---- Player %d ----\n", s.activeActor))
+	builder := strings.Builder{}
+	builder.WriteString(fmt.Sprintf("---- Player %d ----\n", s.activeActor))
 
-	out <- []byte(fmt.Sprintf("%d current score\n", calculateScore(s, s.activeActor)))
-	out <- []byte("--------\n")
+	builder.WriteString(fmt.Sprintf("%d current score\n", calculateScore(s, s.activeActor)))
+	builder.WriteString("--------\n")
+
 	for i, num := range s.actorData[s.activeActor].vegetableNum {
-		out <- []byte(fmt.Sprintf("%d %v\n", num, VegType(i)))
-
+		builder.WriteString(fmt.Sprintf("%d %v\n", num, VegType(i)))
 	}
 
-	out <- []byte(fmt.Sprintf("---- point cards ----\n"))
+	builder.WriteString("---- point cards ----\n")
 
 	for i, card := range s.actorData[s.activeActor].pointPile {
-		out <- []byte(fmt.Sprintf("%d: %s\n", i, getCriteriaString(s, card.vegType, card.id)))
+		builder.WriteString(fmt.Sprintf("%d: %s\n", i, getCriteriaString(s, card.vegType, card.id)))
 	}
+	return builder.String()
 }
 
 func flipCardsFromPiles(s *GameState) {
@@ -535,12 +642,16 @@ func flipCardsFromPiles(s *GameState) {
 		for x := range 2 {
 			market_pos := y + x*playPilesNum
 			if !s.market[market_pos].hasCard {
-				if len(s.piles[y]) == 0 {
+				if len(s.piles[y]) > 0 {
 					s.market[market_pos].card = drawFromTop(s, y)
 					s.market[market_pos].hasCard = true
 
 				} else {
 					index := getMaxPileIndex(s)
+					// all piles are empty
+					if index == -1 {
+						return
+					}
 					s.market[market_pos].card = drawFromBot(s, index)
 					s.market[market_pos].hasCard = true
 				}
@@ -587,12 +698,21 @@ func pickCardToChangeToVeg(s *GameState, in chan []byte, out chan []byte) {
 	}
 }
 
+func getCardFromStr(s *GameState, str string) (Card, error) {
+	for i, c_str := range s.strCriterias {
+		if str == c_str {
+			return Card{id: i, vegType: VegType(i % vegetableTypeNum)}, nil
+		}
+	}
+	return Card{}, fmt.Errorf("Failed to find card with criteria %s", str)
+}
+
 func calculateScore(s *GameState, actorId int) int {
 	score := 0
-
 	for _, point_card := range s.actorData[actorId].pointPile {
 		_ = point_card
-		var criteria Criteria
+
+		criteria := s.criteriaTable[point_card.id]
 
 		switch criteria.criteria_type {
 		case MOST:
@@ -753,20 +873,20 @@ func calculateScore(s *GameState, actorId int) int {
 		}
 
 	}
-
 	return score
 }
 
 // should be called before doAction
 func BroadcastAction(s *GameState, action ActorAction, out map[int]chan []byte) {
-	broadcast_to_all(out, "---- Action ----\n")
+	assert(IsActionLegal(s, action) == nil)
+	broadcastToAll(out, "---- Action ----\n")
 	switch action.kind {
 	case INVALID:
 		panic("unreachable")
 	case PICK_VEG_FROM_MARKET:
 		{
 			for i := range action.amount {
-				broadcast_to_all(out, fmt.Sprintf("Player %d drew %v from market\n", s.activeActor, s.market[action.ids[i]].card.vegType.String()))
+				broadcastToAll(out, fmt.Sprintf("Player %d drew %v from market\n", s.activeActor, s.market[action.ids[i]].card.vegType.String()))
 			}
 		}
 	case PICK_POINT_FROM_MARKET:
@@ -775,18 +895,18 @@ func BroadcastAction(s *GameState, action ActorAction, out map[int]chan []byte) 
 				pile := s.piles[action.ids[i]]
 				card := pile[len(pile)-1]
 				criteria := getCriteriaString(s, card.vegType, card.id)
-				broadcast_to_all(out, fmt.Sprintf("Player %d drew %v from market\n", s.activeActor, criteria))
+				broadcastToAll(out, fmt.Sprintf("Player %d drew %v from market\n", s.activeActor, criteria))
 			}
 		}
 	case PICK_TO_SWAP:
 		{
 			if action.amount == 0 {
-				broadcast_to_all(out, fmt.Sprintf("Player %d did not swap any card\n", s.activeActor))
+				broadcastToAll(out, fmt.Sprintf("Player %d did not swap any card\n", s.activeActor))
 			} else {
 				for i := range action.amount {
 					card := s.actorData[s.activeActor].pointPile[action.ids[i]]
 					criteria := getCriteriaString(s, card.vegType, card.id)
-					broadcast_to_all(out, fmt.Sprintf("Player %d swapped %v to %v\n", s.activeActor, criteria, card.vegType))
+					broadcastToAll(out, fmt.Sprintf("Player %d swapped %v to %v\n", s.activeActor, criteria, card.vegType))
 				}
 			}
 		}

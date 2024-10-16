@@ -41,7 +41,7 @@ const (
 type Criteria struct {
 	criteria_type CriteriaType
 	//
-	veg_count [VEGETABLE_TYPE_NUM]int
+	veg_count [vegetableTypeNum]int
 	// used for single score rules
 	single_score int
 	greater_than_eq_value int
@@ -49,7 +49,7 @@ type Criteria struct {
 	even_score int
 	odd_score int
 	// used for per rules
-	per_scores [VEGETABLE_TYPE_NUM]int
+	per_scores [vegetableTypeNum]int
 }
 
 type TokenType int
@@ -161,7 +161,7 @@ func isDigit(char byte) bool {
 
 func isVegetable(s string) bool {
 
-	for i := range VEGETABLE_TYPE_NUM {
+	for i := range vegetableTypeNum {
 		if VegType(i).String() == s {
 			return true
 		} 
@@ -171,7 +171,7 @@ func isVegetable(s string) bool {
 }
 
 func getVegetableType(s string) VegType {
-	for i := range VEGETABLE_TYPE_NUM {
+	for i := range vegetableTypeNum {
 		if VegType(i).String() == s {
 			return VegType(i)
 		} 

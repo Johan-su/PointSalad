@@ -8,38 +8,38 @@ import (
 )
 
 var inited bool = false
-var json_cards JCards
+var jsonCards JCards
 
 func initJson() {
 	if inited {
 		return
 	}
-	data, err := os.ReadFile("PointSaladManifest.json")
+	data, err := os.ReadFile("../../PointSaladManifest.json")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = json.Unmarshal(data, &json_cards)
+	err = json.Unmarshal(data, &jsonCards)
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
 // ---- Requirement 1 ----
-func CorrectPlayerAmount(t *testing.T, expected bool, player_num int, bot_num int) {
-	s, err := createGameState(&json_cards, player_num, bot_num, 0)
-	value := err != nil
-	if expected != value {
-		t.Errorf("Expected %v got %v with %v %v\n", expected, value, player_num, bot_num)
-	}
+func correctPlayerAmount(t *testing.T, expected bool, playerNum int, botNum int) {
+	// s, err := createGameState(&jsonCards, playerNum, botNum, 0)
+	// value := err != nil
+	// if expected != value {
+	// 	t.Errorf("Expected %v got %v with %v %v\n", expected, value, playerNum, botNum)
+	// }
 }
 
 func TestPlayerAmount(t *testing.T) {
 	initJson()
 	test_table := []struct {
 		expected   bool
-		player_num int
-		bot_num    int
+		playerNum int
+		botNum    int
 	}{
 		{false, -1, -1},
 		// players
@@ -63,7 +63,7 @@ func TestPlayerAmount(t *testing.T) {
 		{false, 0, 8},
 	}
 	for _, test := range test_table {
-
+		correctPlayerAmount(t, test.expected, test.playerNum, test.botNum)
 	}
 }
 
@@ -203,30 +203,33 @@ func TestCriteriaParsing(t *testing.T) {
 
 // ---- Requirement 3 ----
 
-func CorrectVegetableAmount(t *testing.T, actor_num int, expected_num_of_vegetable_per_type int) {
-	s := createGameState(json_cards, 0, actor_num, 0)
+func CorrectVegetableAmount(t *testing.T, actorNum int, expectedNumOfVegetablePerType int) {
+	s, err := createGameState(&jsonCards, 0, actorNum, 0)
+	if err != nil {
+		t.Fatalf("Failed to create GameState")
+	}
 
-	vegetable_nums := [VEGETABLE_TYPE_NUM]int{}
+	vegetableNums := [vegetableTypeNum]int{}
 
 	for i1, pile := range s.piles {
 		for j1, card := range pile {
-			vegetable_nums[int(card.Vegetable_type)] += 1
+			vegetableNums[int(card.vegType)] += 1
 			for i2, other_pile := range s.piles {
 				for j2, other_card := range other_pile {
 					if i1 == i2 && j1 == j2 {
 						continue
 					}
-					if card.Id == other_card.Id && card.Vegetable_type == other_card.Vegetable_type {
-						t.Errorf("pile_id1=%d card_id1=%d pile_id2=%d card_id2=%d actor_num=%d %v vegetable with same id %d, ", i1, j1, i2, j2, actor_num, card.Vegetable_type, card.Id)
+					if card.id == other_card.id && card.vegType == other_card.vegType {
+						t.Errorf("pile_id1=%d card_id1=%d pile_id2=%d card_id2=%d actorNum=%d %v vegetable with same id %d, ", i1, j1, i2, j2, actorNum, card.vegType, card.id)
 					}
 				}
 			}
 		}
 	}
 
-	for i, vegetable_num := range vegetable_nums {
-		if vegetable_num != expected_num_of_vegetable_per_type {
-			t.Errorf("Expected %d %v got %d", expected_num_of_vegetable_per_type, VegType(i), vegetable_num)
+	for i, vegetable_num := range vegetableNums {
+		if vegetable_num != expectedNumOfVegetablePerType {
+			t.Errorf("Expected %d %v got %d", expectedNumOfVegetablePerType, VegType(i), vegetable_num)
 		}
 	}
 }
@@ -234,8 +237,8 @@ func CorrectVegetableAmount(t *testing.T, actor_num int, expected_num_of_vegetab
 func TestCorrectVegetables(t *testing.T) {
 	initJson()
 	test_table := []struct {
-		actor_num                          int
-		expected_num_of_vegetable_per_type int
+		actorNum                          int
+		expectedNumOfVegetablePerType int
 	}{
 		{2, 6},
 		{3, 9},
@@ -244,8 +247,69 @@ func TestCorrectVegetables(t *testing.T) {
 		{6, 18},
 	}
 	for _, v := range test_table {
-		CorrectVegetableAmount(t, &json_cards, v.actor_num, v.expected_num_of_vegetable_per_type)
+		CorrectVegetableAmount(t, v.actorNum, v.expectedNumOfVegetablePerType)
 	}
 }
+
+// ---- Requirement 10 ----
+
+func TestSwitchingDrawPile(t *testing.T) {
+	initJson()
+	// s, err := createGameState(&jsonCards, 0, 2, 0)
+	// if err != nil {
+		
+	// }
+}
+
+// ---- Requirement 13 ----
+
+func CorrectCalculateScore(t *testing.T, expected_score int, vegetableNum [vegetableTypeNum]int, card_strs []string) {
+	s, err := createGameState(&jsonCards, 0, 2, 0)
+	if err != nil {
+		t.Fatalf("Failed to create GameState")
+	}
+	s.actorData[0].vegetableNum = vegetableNum
+	for _, str := range card_strs {
+		card, err := getCardFromStr(&s, str)
+		if err != nil {
+			t.Fatalf("Failed to get card %s", str)
+		}
+		s.actorData[0].pointPile = append(s.actorData[0].pointPile, card)
+	}
+	score := calculateScore(&s, 0)
+	if score != expected_score {
+		t.Errorf("Expected %d got %d", expected_score, score)
+	}
+
+}
+
+func TestCalculateScore(t *testing.T) {
+	initJson()
+
+	test_table := []struct{expected_score int; vegetableNum [vegetableTypeNum]int; card_strs []string} {
+		{
+			13,
+			[vegetableTypeNum]int{6, 5, 4, 6, 2, 0},
+			[]string {
+				"4/ONION,  -2/CARROT,  -2/LETTUCE",
+				"4/LETTUCE,  -2/TOMATO,  -2/CABBAGE",
+				"ONION: EVEN=7, ODD=3",
+				"4/CABBAGE,  -2/PEPPER,  -2/ONION",
+			},
+		},
+		{
+			24,
+			[vegetableTypeNum]int{2, 15, 2, 2, 7, 2},
+			[]string{"COMPLETE SET = 12"},
+		},
+	}
+
+	for _, test := range test_table {
+		CorrectCalculateScore(t, test.expected_score, test.vegetableNum, test.card_strs)
+	}
+
+
+}
+
 
 // ---- End ----

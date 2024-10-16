@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net"
+	"fmt"
 )
 
 type TCPClient struct {
@@ -11,14 +12,32 @@ type TCPClient struct {
 	out               chan []byte
 	quitRead          chan bool
 	quitWrite         chan bool
-	clientReceiveSize int
+	clientMaxReceiveSize int
 }
 
-func (c *TCPClient) Connect(hostname string, port string) error {
+func (c *TCPClient) Connect(hostname string, port string, clientMaxReceiveSize int) error {
+	c.clientMaxReceiveSize = clientMaxReceiveSize
 	conn, err := net.Dial("tcp", hostname+":"+port)
 	if err != nil {
 		return err
 	}
+
+	buf := make([]byte, 4, 4)
+	buf = []byte("ping")
+	_, err = conn.Write(buf)
+	if err != nil {
+		return err
+	}
+	buf = make([]byte, 4, 4)
+	_, err = conn.Read(buf)
+	if err != nil {
+		return err
+	}
+	if string(buf) != "pong" {
+		return fmt.Errorf("Failed ping pong test\n")
+	}
+
+
 	c.conn = conn
 	c.in = make(chan []byte)
 	c.out = make(chan []byte)
@@ -31,12 +50,11 @@ func (c *TCPClient) Connect(hostname string, port string) error {
 }
 
 func (c *TCPClient) Close() {
+	log.Printf("Closing client\n")
 	c.conn.Close()
+	close(c.out)
 	c.quitRead <- true
 	c.quitWrite <- true
-	close(c.in)
-	// closing out is probably not necessary
-	// close(c.out)
 }
 
 func (c *TCPClient) GetReadChannel() chan []byte {
@@ -48,29 +66,24 @@ func (c *TCPClient) GetWriteChannel() chan []byte {
 }
 
 func (c *TCPClient) handleRead() {
-	running := true
 loop:
-	for running {
-		buf := make([]byte, c.clientReceiveSize, c.clientReceiveSize)
-		_, err := c.conn.Read(buf)
+	for true {
+		buf := make([]byte, c.clientMaxReceiveSize, c.clientMaxReceiveSize)
+		n, err := c.conn.Read(buf)
 		if err != nil {
-			running = false
 			log.Printf("ERROR: %v\n", err)
+			break loop
 		}
 		select {
-		case <-c.quitRead:
-			{
-				break loop
-			}
-		case c.in <- buf:
+		case <-c.quitRead: break loop
+		case c.in <- buf[:n]:
 		}
 	}
 }
 
 func (c *TCPClient) handleWrite() {
-	running := true
 loop:
-	for running {
+	for true {
 		var valToSend []byte
 		select {
 		case <-c.quitWrite:
@@ -81,8 +94,8 @@ loop:
 		}
 		_, err := c.conn.Write(valToSend)
 		if err != nil {
-			running = false
 			log.Printf("ERROR: %v\n", err)
+			break loop
 		}
 	}
 }

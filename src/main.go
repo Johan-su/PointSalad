@@ -10,17 +10,19 @@ type Game interface {
 	Init(playerNum int, botNum int)
 	RunHost(in map[int]chan []byte, out map[int]chan []byte)
 	RunPlayer(in chan []byte, out chan []byte)
+	GetMaxHostDataSize() int
+	GetMaxPlayerDataSize() int
 }
 
 type Client interface {
-	Connect(hostname string, port string) error
+	Connect(hostname string, port string, clientMaxReceiveSize int) error
 	Close()
 	GetReadChannel() chan []byte
 	GetWriteChannel() chan []byte
 }
 
 type Server interface {
-	Init(port string, playerNum int) error
+	Init(port string, playerNum int, serverMaxReceiveSize int) error
 	Close()
 	GetReadChannels() map[int]chan []byte
 	GetWriteChannels() map[int]chan []byte
@@ -49,20 +51,23 @@ func main() {
 
 		var server Server
 		server = &TCPServer{}
-		server.Init(port, playerNum)
-		defer server.Close()
-
+		err := server.Init(port, playerNum, game.GetMaxHostDataSize())
+		if err != nil {
+			log.Fatalf("%s\n", err)
+		}
+		
 		game.RunHost(server.GetReadChannels(), server.GetWriteChannels())
+		server.Close()
 
 	} else {
 		var client Client
 		client = &TCPClient{}
 
-		err := client.Connect(hostname, port)
+		err := client.Connect(hostname, port, game.GetMaxPlayerDataSize())
 		if err != nil {
 			log.Fatalf("%s\n", err)
 		}
-		defer client.Close()
 		game.RunPlayer(client.GetReadChannel(), client.GetWriteChannel())
+		client.Close()
 	}
 }
