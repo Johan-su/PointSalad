@@ -2,6 +2,7 @@ package pointsalad
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 )
 
@@ -23,34 +24,220 @@ type JCards struct {
 	Cards []JCard
 }
 
-type CriteriaType int
-const (
-	MOST CriteriaType = iota
-	FEWEST CriteriaType = iota
-	EVEN_ODD CriteriaType = iota
-	PER CriteriaType = iota
-	SUM CriteriaType = iota
-	MOST_TOTAL CriteriaType = iota
-	FEWEST_TOTAL CriteriaType = iota
-	PER_TYPE_GREATER_THAN_EQ CriteriaType = iota
-	PER_MISSING_TYPE CriteriaType = iota
-	COMPLETE_SET CriteriaType = iota
-	CRITERIA_TYPE_NUM = iota
-)
 
-type Criteria struct {
-	criteria_type CriteriaType
-	veg_count [vegetableTypeNum]int
-	// used for single score rules
-	single_score int
-	// used for greater than rules
-	greater_than_eq_value int
-	// used for even odd rules
-	even_score int
-	odd_score int
-	// used for per rules
-	per_scores [vegetableTypeNum]int
+
+type Criteria interface {
+	calculateScore(s *GameState, actorId int) int
 }
+
+
+
+
+type CriteriaMost struct {
+	vegType VegType
+	score int
+} 
+
+func (c *CriteriaMost) calculateScore(s *GameState, actorId int) int {
+	vegType := int(c.vegType)
+	
+	max := math.MinInt32
+	maxId := -1
+	for i, actorData := range s.actorData {
+		if actorData.vegetableNum[vegType] > max {
+			max = actorData.vegetableNum[vegType]
+			maxId = i
+		}
+	}
+	if maxId != actorId {
+		return 0
+	}
+	return c.score
+}
+
+
+
+
+type CriteriaFewest struct {
+	vegType VegType
+	score int
+}  
+
+func (c *CriteriaFewest) calculateScore(s *GameState, actorId int) int {
+	vegType := int(c.vegType)
+	
+	min := math.MaxInt32
+	minId := -1
+	for i, actorData := range s.actorData {
+		if actorData.vegetableNum[vegType] < min {
+			min = actorData.vegetableNum[vegType]
+			minId = i
+		}
+	}
+	if minId != actorId {
+		return 0
+	}
+	return c.score
+}
+
+
+
+
+type CriteriaEvenOdd struct {
+	vegType VegType
+	evenScore int
+	oddScore int
+}  
+
+func (c *CriteriaEvenOdd) calculateScore(s *GameState, actorId int) int {
+	if s.actorData[actorId].vegetableNum[c.vegType] % 2 == 0 {
+		return c.evenScore
+	} else {
+		return c.oddScore
+	}
+} 
+
+
+
+
+type CriteriaPer struct {
+	perScores [vegetableTypeNum]int
+}
+
+func (c *CriteriaPer) calculateScore(s *GameState, actorId int) int {
+	score := 0
+	for j, per_value := range c.perScores {
+		score += s.actorData[actorId].vegetableNum[j] * per_value
+	}
+	return score
+}
+
+
+
+
+type CriteriaSum struct {
+	vegCount [vegetableTypeNum]int
+	score int
+} 
+func (c *CriteriaSum) calculateScore(s *GameState, actorId int) int {
+	min := math.MaxInt32
+	for j, count := range c.vegCount {
+		if count == 0 {
+			continue
+		}
+		non_repeated_value := s.actorData[actorId].vegetableNum[j] / count
+		if non_repeated_value < min {
+			min = non_repeated_value
+		}
+	}
+	if min == math.MaxInt32 {
+		return 0
+	}
+	return min * c.score
+}
+
+
+
+
+type CriteriaMostTotal struct {
+	score int
+}  
+
+func (c *CriteriaMostTotal) calculateScore(s *GameState, actorId int) int {
+	vegCount := 0
+	for _, count := range s.actorData[actorId].vegetableNum {
+		vegCount += count
+	}
+
+	for _, actorData := range s.actorData {
+		other_vegCount := 0
+		for _, count := range actorData.vegetableNum {
+			other_vegCount += count
+		}
+		if other_vegCount >= vegCount {
+			return 0
+		}
+	}
+	return c.score
+} 
+
+
+
+
+type CriteriaFewestTotal struct {
+	score int
+}  
+
+func (c *CriteriaFewestTotal) calculateScore(s *GameState, actorId int) int {
+	vegCount := 0
+	for _, count := range s.actorData[actorId].vegetableNum {
+		vegCount += count
+	}
+
+	for _, actorData := range s.actorData {
+		other_vegCount := 0
+		for _, count := range actorData.vegetableNum {
+			other_vegCount += count
+		}
+		if other_vegCount <= vegCount {
+			return 0
+		}
+	}
+	return c.score
+} 
+
+
+
+
+type CriteriaPerTypeGreaterThanEq struct {
+	greaterThanEq int
+	score int
+}  
+
+func (c *CriteriaPerTypeGreaterThanEq) calculateScore(s *GameState, actorId int) int {
+	score := 0
+	for _, count := range s.actorData[actorId].vegetableNum {
+		if count >= c.greaterThanEq {
+			score += c.score
+		}
+	}
+	return score
+} 
+
+
+
+
+type CriteriaPerMissingType struct {
+	score int
+}  
+
+func (c *CriteriaPerMissingType) calculateScore(s *GameState, actorId int) int {
+	score := 0
+	for _, count := range s.actorData[actorId].vegetableNum {
+		if count == 0 {
+			score += c.score
+		}
+	}
+	return score
+} 
+
+
+
+
+type CriteriaCompleteSet struct {
+	score int
+}  
+
+func (c *CriteriaCompleteSet) calculateScore(s *GameState, actorId int) int {
+	min := s.actorData[actorId].vegetableNum[0]
+	for _, count := range s.actorData[actorId].vegetableNum {
+		if count < min {
+			min = count
+		}
+	}
+	return c.score * min
+} 
+
 
 type TokenType int
 const (
@@ -233,11 +420,9 @@ func parseCriteria(s string) (Criteria, error) {
 			lex.tokens = append(lex.tokens, Token{GREATER, s[i:i + 1]})
 			i += 1
 		} else {
-			return Criteria{}, fmt.Errorf("Unknown character: %c", s[i])
+			return nil, fmt.Errorf("Unknown character: %c", s[i])
 		}
 	}
-
-	criteria := Criteria{}
 
 	for lex.index = 0; lex.index < len(lex.tokens); lex.index += 1 {
 		first := getToken(&lex) 
@@ -248,73 +433,64 @@ func parseCriteria(s string) (Criteria, error) {
 
 					err := expectNextTokenStr(&lex, "VEGETABLE")
 					if err != nil {
-						return Criteria{}, err
+						return nil, err
 					}
 					err = expectNextTokenType(&lex, EQUAL)
 					if err != nil {
-						return Criteria{}, err
+						return nil, err
 					}
 
 					num, err := parseNumber(&lex, nextToken(&lex))
 					if err != nil {
-						return criteria, err
+						return nil, err
 					}
+
+					
 					if first.s == "MOST" {
-						criteria.criteria_type = MOST_TOTAL
+						return &CriteriaMostTotal{score: num}, nil
 					} else if first.s == "FEWEST" {
-						criteria.criteria_type = FEWEST_TOTAL
+						return &CriteriaFewestTotal{score: num}, nil
 					} else {
 						panic("unreachable")
 					}
-					criteria.single_score = num
-
-					return criteria, nil
 
 				} else if isVegetable(t.s) {
 					v := getVegetableType(t.s)
 					err := expectNextTokenType(&lex, EQUAL)
 					if err != nil {
-						return Criteria{}, err 
+						return nil, err 
 					}
 					num, err := parseNumber(&lex, nextToken(&lex))
 					if err != nil {
-						return Criteria{}, err
+						return nil, err
 					}
 
 					if first.s == "MOST" {
-						criteria.criteria_type = MOST
+						return &CriteriaMost{vegType: v, score: num}, nil
 					} else if first.s == "FEWEST" {
-						criteria.criteria_type = FEWEST
+						return &CriteriaFewest{vegType: v, score: num}, nil
 					} else {
 						panic("unreachable")
 					}
-					criteria.veg_count[int(v)] += 1
-					criteria.single_score = num
-
-					return criteria, nil
-
 				} else {
-					return Criteria{}, fmt.Errorf("Expected TOTAL or a vegetable type")
+					return nil, fmt.Errorf("Expected TOTAL or a vegetable type")
 				}
 			} else if first.s == "COMPLETE" {
 				err := expectNextTokenStr(&lex, "SET")
 				if err != nil {
-					return Criteria{}, err
+					return nil, err
 				}
 				err = expectNextTokenType(&lex, EQUAL)
 				if err != nil {
-					return Criteria{}, err
+					return nil, err
 				}
 
 				num, err := parseNumber(&lex, nextToken(&lex))
 				if err != nil {
-					return criteria, err
+					return nil, err
 				}
 
-				criteria.criteria_type = COMPLETE_SET
-				criteria.single_score = num
-
-				return criteria, nil
+				return &CriteriaCompleteSet{score: num}, nil
 
 			} else if isVegetable(first.s) {
 				v := getVegetableType(first.s)
@@ -322,153 +498,139 @@ func parseCriteria(s string) (Criteria, error) {
 				if t.token_type == COLON {
 					err := expectNextTokenStr(&lex, "EVEN")
 					if err != nil {
-						return Criteria{}, err
+						return nil, err
 					}
 					err = expectNextTokenType(&lex, EQUAL)
 					if err != nil {
-						return Criteria{}, err
+						return nil, err
 					}
 
 					even, err := parseNumber(&lex, nextToken(&lex))
 					if err != nil {
-						return criteria, err
+						return nil, err
 					}
 					err = expectNextTokenType(&lex, COMMA)
 					if err != nil {
-						return Criteria{}, err
+						return nil, err
 					}
 					err = expectNextTokenStr(&lex, "ODD")
 					if err != nil {
-						return Criteria{}, err
+						return nil, err
 					}
 					err = expectNextTokenType(&lex, EQUAL)
 					if err != nil {
-						return Criteria{}, err
+						return nil, err
 					}
 
 					odd, err := parseNumber(&lex, nextToken(&lex))
 					if err != nil {
-						return criteria, err
+						return nil, err
 					}
 
-					criteria.criteria_type = EVEN_ODD
-					criteria.veg_count[int(v)] += 1
-					criteria.even_score = even
-					criteria.odd_score = odd
-
-					return criteria, nil
+					return &CriteriaEvenOdd{vegType: v, evenScore: even, oddScore: odd}, nil
 
 				} else if t.token_type == PLUS {
-					criteria.veg_count[int(v)] += 1
+					var vegCount [vegetableTypeNum]int
+					vegCount[int(v)] += 1
 					for true {
 						t := nextToken(&lex)
 						if !isVegetable(t.s) {
-							return Criteria{}, fmt.Errorf("Expected vegetable type here")
+							return nil, fmt.Errorf("Expected vegetable type")
 						}
 						v := getVegetableType(t.s)
-						criteria.veg_count[int(v)] += 1
+						vegCount[int(v)] += 1
 						if lex.index >= len(lex.tokens) - 1 || nextToken(&lex).token_type != PLUS {
 							break
 						}
 					}
 					err := expectTokenType(&lex, EQUAL)
 					if err != nil {
-						return Criteria{}, err
+						return nil, err
 					}
 					num, err := parseNumber(&lex, nextToken(&lex))
 					if err != nil {
-						return Criteria{}, err
+						return nil, err
 					}
-
-					criteria.criteria_type = SUM
-					criteria.single_score = num
-
-					return criteria, nil
+					
+					return &CriteriaSum{vegCount: vegCount, score: num}, nil
 
 				} else {
-					return Criteria{}, fmt.Errorf("Expected COLON or PLUS here")
+					return nil, fmt.Errorf("Expected COLON or PLUS here")
 				}
 			} else {
-				return Criteria{}, fmt.Errorf("Expected MOST or FEWEST OR COMPLETE or a vegetable type here")
+				return nil, fmt.Errorf("Expected MOST or FEWEST OR COMPLETE or a vegetable type here")
 			}
 		} else if first.token_type == NUMBER {
 			num, err := parseNumber(&lex, first)
 			if err != nil {
-				return Criteria{}, err
+				return nil, err
 			}
 			err = expectNextTokenType(&lex, SLASH)
 			if err != nil {
-				return Criteria{}, err
+				return nil, err
 			}
 
 			t := nextToken(&lex)
 			if t.s == "VEGETABLE" {
 				err = expectNextTokenStr(&lex, "TYPE")
 				if err != nil {
-					return Criteria{}, err
+					return nil, err
 				}
 				err = expectNextTokenType(&lex, GREATER)
 				if err != nil {
-					return Criteria{}, err
+					return nil, err
 				}
 				err = expectNextTokenType(&lex, EQUAL)
 				if err != nil {
-					return Criteria{}, err
+					return nil, err
 				}
 
 				num2, err := parseNumber(&lex, nextToken(&lex))
 				if err != nil {
-					return Criteria{}, err
+					return nil, err
 				}
 
-				criteria.criteria_type = PER_TYPE_GREATER_THAN_EQ
-				criteria.single_score = num
-				criteria.greater_than_eq_value = num2
-
-				return criteria, nil
+				return &CriteriaPerTypeGreaterThanEq{greaterThanEq: num2, score: num}, nil
 
 			} else if t.s == "MISSING" {
 				err = expectNextTokenStr(&lex, "VEGETABLE")
 				if err != nil {
-					return Criteria{}, err
+					return nil, err
 				}
 				err = expectNextTokenStr(&lex, "TYPE")
 				if err != nil {
-					return Criteria{}, err
+					return nil, err
 				}
 
-				criteria.criteria_type = PER_MISSING_TYPE
-				criteria.single_score = num
+				return &CriteriaPerMissingType{score: num}, nil
 
-				return criteria, nil
 			} else {
+				var perScores [vegetableTypeNum]int 
 				for true {
 					if !isVegetable(t.s) {
-						return Criteria{}, fmt.Errorf("Expected vegetable type here")
+						return nil, fmt.Errorf("Expected vegetable type here")
 					}
 					v := getVegetableType(t.s)
-					criteria.per_scores[int(v)] = num
+					perScores[int(v)] = num
 
 					if lex.index >= len(lex.tokens) - 1 || nextToken(&lex).token_type != COMMA {
 						break
 					}
 					num, err = parseNumber(&lex, nextToken(&lex))
 					if err != nil {
-						return Criteria{}, err
+						return nil, err
 					}
 					err = expectNextTokenType(&lex, SLASH)
 					if err != nil {
-						return Criteria{}, err
+						return nil, err
 					}
 					t = nextToken(&lex)
 				}
 	
-				criteria.criteria_type = PER
-	
-				return criteria, nil
+				return &CriteriaPer{perScores: perScores}, nil
 			} 
 		} else {
-			return Criteria{}, fmt.Errorf("Expected Identifier or number as first token")
+			return nil, fmt.Errorf("Expected Identifier or number as first token")
 		}
 	}
 	panic("unreachable")
