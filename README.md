@@ -30,3 +30,5 @@ go build -o pointsalad ./src
 ```console
 go test  ./src/pointsalad
 ```
+
+Runs all xxx_test.go files in src/pointsalad folder
