@@ -252,6 +252,58 @@ func TestCorrectVegetables(t *testing.T) {
 	}
 }
 
+// ---- Requirement 4
+
+func TestCreate3DrawPiles(t *testing.T) {
+	initJson()
+	s, err := createGameState(&jsonCards, 0, 2, 0)
+	if err != nil {
+		t.Fatalf("Failed to create GameState")
+	}
+	pileAmount := 3
+	if len(s.piles) != pileAmount {
+		t.Errorf("Expected the amount of draw piles to be %d\n", pileAmount)
+	}
+	pileLen = len(s.piles[0])
+	for i, pile := range s.piles {
+		if len(pile) != pileLen {
+			t.Errorf("Expected equal pile length %d but got %d for id %d\n", pileLen, len(pile), i)
+		}
+	}
+}
+
+// ---- Requirement 5 ----
+
+func TestCardFlipping(t *testing.T) {
+	initJson()
+	s, err := createGameState(&jsonCards, 0, 2, 0)
+	if err != nil {
+		t.Fatalf("Failed to create GameState")
+	}
+}
+
+// ---- Requirement 6 ----
+func TestRandomStartingPlayer(t *testing.T) {
+	initJson()
+
+	startingPlayerIdsAmount := [6]int{}
+
+	testAmount := 100000
+
+	for i := range testAmount  {
+		s, err := createGameState(&jsonCards, 0, 6, i)
+		if err != nil {
+			t.Fatalf("Failed to create GameState")
+		}
+		startingPlayerIdsAmount[s.activeActor] += 1
+	}
+
+	for _, amount := range startingPlayerIdsAmount {
+		
+	}
+
+}
+
 // ---- Requirement 10 ----
 
 func TestSwitchingDrawPile(t *testing.T) {
