@@ -6,6 +6,10 @@ import (
 	"net"
 )
 
+
+
+
+
 type TCPClient struct {
 	conn                 net.Conn
 	in                   chan []byte
@@ -63,15 +67,16 @@ func (c *TCPClient) GetWriteChannel() chan []byte {
 	return c.out
 }
 
+
 func (c *TCPClient) handleRead() {
-	defer close(c.in)
-loop:
 	for {
 		buf := make([]byte, c.clientMaxReceiveSize)
 		n, err := c.conn.Read(buf)
 		if err != nil {
 			// log.Printf("ERROR: %v\n", err)
-			break loop
+			close(c.in)
+			<-c.quitRead
+			return
 		}
 		select {
 		case <-c.quitRead:
@@ -79,7 +84,6 @@ loop:
 		case c.in <- buf[:n]:
 		}
 	}
-	<-c.quitRead
 }
 
 func (c *TCPClient) handleWrite() {
@@ -188,28 +192,24 @@ func (s *TCPServer) GetWriteChannels() map[int]chan []byte {
 }
 
 func handleRead(s *TCPServer, connId int) {
-	defer close(s.in[connId])
-	loop:
 	for {
 		buf := make([]byte, s.serverMaxReceiveSize, s.serverMaxReceiveSize)
 		read, err := s.conn[connId].Read(buf)
 		if err != nil {
-			// log.Printf("ERROR: connId = %d, read = %v, err = %s\n", connId, read, err)
-			break loop
+			close(s.in[connId])
+			<-s.quitRead[connId]
+			return
 		}
 		select {
 		case <-s.quitRead[connId]:
 			return
-
 		case s.in[connId] <- buf[:read]:
 		}
 	}
-	<-s.quitRead[connId]
 }
 
 func handleWrite(s *TCPServer, connId int) {
 	var buf []byte
-	loop:
 	for {
 		select {
 		case <-s.quitWrite[connId]:
@@ -218,9 +218,8 @@ func handleWrite(s *TCPServer, connId int) {
 		}
 		_, err := s.conn[connId].Write(buf)
 		if err != nil {
-			// log.Printf("ERROR: connId = %d, written = %v, err = %s\n", connId, written, err)
-			break loop
+			<-s.quitWrite[connId]
+			return
 		}
 	}
-	<-s.quitWrite[connId]
 }
