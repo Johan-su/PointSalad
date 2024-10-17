@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type VegType int
@@ -102,7 +103,8 @@ func (state *GameState) Init(playerNum int, botNum int) {
 	}
 
 	{
-		game_state, err := createGameState(&jsonCards, playerNum, botNum, 0)
+		seed := time.Now().Unix() 
+		game_state, err := createGameState(&jsonCards, playerNum, botNum, seed)
 		if err != nil {
 			log.Fatalf("ERROR: Failed to create game state: %s\n", err)
 			return
@@ -257,6 +259,22 @@ func createGameState(jsonCards *JCards, playerNum int, botNum int, seed int64) (
 
 	rand.Seed(seed)
 
+	for _, card := range jsonCards.Cards {
+		s.strCriterias = append(s.strCriterias, card.Criteria.PEPPER)
+		s.strCriterias = append(s.strCriterias, card.Criteria.LETTUCE)
+		s.strCriterias = append(s.strCriterias, card.Criteria.CARROT)
+		s.strCriterias = append(s.strCriterias, card.Criteria.CABBAGE)
+		s.strCriterias = append(s.strCriterias, card.Criteria.ONION)
+		s.strCriterias = append(s.strCriterias, card.Criteria.TOMATO)
+	}
+
+	table, err := createCriteriaTable(jsonCards)
+	if err != nil {
+		return GameState{}, err
+	}
+	s.criteriaTable = table
+
+
 	var ids []int
 	for id, _ := range jsonCards.Cards {
 		ids = append(ids, id)
@@ -284,20 +302,6 @@ func createGameState(jsonCards *JCards, playerNum int, botNum int, seed int64) (
 		deck[i], deck[j] = deck[j], deck[i]
 	})
 
-	for _, card := range jsonCards.Cards {
-		s.strCriterias = append(s.strCriterias, card.Criteria.PEPPER)
-		s.strCriterias = append(s.strCriterias, card.Criteria.LETTUCE)
-		s.strCriterias = append(s.strCriterias, card.Criteria.CARROT)
-		s.strCriterias = append(s.strCriterias, card.Criteria.CABBAGE)
-		s.strCriterias = append(s.strCriterias, card.Criteria.ONION)
-		s.strCriterias = append(s.strCriterias, card.Criteria.TOMATO)
-	}
-
-	table, err := createCriteriaTable(jsonCards)
-	if err != nil {
-		return GameState{}, err
-	}
-	s.criteriaTable = table
 
 	pile_size := len(deck) / playPilesNum
 	pile_size_remainder := len(deck) % playPilesNum
