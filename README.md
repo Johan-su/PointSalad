@@ -1,6 +1,6 @@
 # Home exam 2024
 
-To build this project the go compiler is need which you can get here [Go](https://go.dev/)
+To build this project the go compiler is needed which you can get here [Go](https://go.dev/)
 
 
 
