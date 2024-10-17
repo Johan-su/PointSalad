@@ -299,9 +299,11 @@ func TestRandomStartingPlayer(t *testing.T) {
 	}
 
 	for _, amount := range startingPlayerIdsAmount {
-		
+		val := float32(amount) / float32(testAmount) 
+		if !(val > 0.16 && val < 0.17) {
+			t.Errorf("Starting players are not random")
+		}
 	}
-
 }
 
 // ---- Requirement 10 ----
