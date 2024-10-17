@@ -40,10 +40,10 @@ const (
 
 type Criteria struct {
 	criteria_type CriteriaType
-	//
 	veg_count [vegetableTypeNum]int
 	// used for single score rules
 	single_score int
+	// used for greater than rules
 	greater_than_eq_value int
 	// used for even odd rules
 	even_score int
