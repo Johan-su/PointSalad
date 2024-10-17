@@ -29,6 +29,8 @@ func (server *TCPServer) Init(port string, playerNum int, serverMaxReceiveSize i
 
 	server.out = make(map[int]chan []byte)
 	server.in = make(map[int]chan []byte)
+	server.quitRead = make(map[int]chan bool)
+	server.quitWrite = make(map[int]chan bool)
 
 	for len(server.conn) < playerNum {
 		log.Printf("Waiting for %d player(s)\n", playerNum-len(server.conn))
@@ -42,6 +44,8 @@ func (server *TCPServer) Init(port string, playerNum int, serverMaxReceiveSize i
 		server.conn = append(server.conn, conn)
 		server.out[id] = make(chan []byte)
 		server.in[id] = make(chan []byte)
+		server.quitRead[id] = make(chan bool)
+		server.quitWrite[id] = make(chan bool)
 
 
 		buf := make([]byte, 4, 4)
@@ -69,14 +73,17 @@ func (server *TCPServer) Init(port string, playerNum int, serverMaxReceiveSize i
 func (s *TCPServer) Close() {
 	log.Printf("Closing server\n")
 	for k := range s.in {
+		_, err := s.conn[k].Write([]byte("quit"))
+		if err != nil {
+			log.Fatalf("Failed to close server correctly")
+		}
 		s.conn[k].Close()
 	}
-	s.listener.Close()
 	for k := range s.in {
-		close(s.out[k])
 		s.quitRead[k] <- true
 		s.quitWrite[k] <- true
 	}
+	s.listener.Close()
 }
 
 func (s *TCPServer) GetReadChannels() map[int]chan []byte {
@@ -88,40 +95,39 @@ func (s *TCPServer) GetWriteChannels() map[int]chan []byte {
 }
 
 func handleRead(s *TCPServer, connId int) {
+	defer close(s.in[connId])
 	loop:
-	for true {
+	for {
 		buf := make([]byte, s.serverMaxReceiveSize, s.serverMaxReceiveSize)
 		read, err := s.conn[connId].Read(buf)
 		if err != nil {
-			log.Printf("ERROR: connId = %d, read = %v, err = %s\n", connId, read, err)
+			// log.Printf("ERROR: connId = %d, read = %v, err = %s\n", connId, read, err)
 			break loop
 		}
 		select {
 		case <-s.quitRead[connId]:
-			{
-				break loop
-			}
+			return
 
 		case s.in[connId] <- buf[:read]:
 		}
 	}
+	<-s.quitRead[connId]
 }
 
 func handleWrite(s *TCPServer, connId int) {
 	var buf []byte
 	loop:
-	for true {
+	for {
 		select {
 		case <-s.quitWrite[connId]:
-			{
-				break loop
-			}
+			return
 		case buf = <-s.out[connId]:
 		}
-		written, err := s.conn[connId].Write(buf)
+		_, err := s.conn[connId].Write(buf)
 		if err != nil {
-			log.Printf("ERROR: connId = %d, written = %v, err = %s\n", connId, written, err)
-			break
+			// log.Printf("ERROR: connId = %d, written = %v, err = %s\n", connId, written, err)
+			break loop
 		}
 	}
+	<-s.quitWrite[connId]
 }

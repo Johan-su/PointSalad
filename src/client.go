@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"net"
 )
@@ -71,12 +70,8 @@ loop:
 		buf := make([]byte, c.clientMaxReceiveSize)
 		n, err := c.conn.Read(buf)
 		if err != nil {
-			if err == io.EOF {
-				break loop		
-			} else {
-				log.Printf("ERROR: %v\n", err)
-				break loop
-			}
+			// log.Printf("ERROR: %v\n", err)
+			break loop
 		}
 		select {
 		case <-c.quitRead:
@@ -98,7 +93,7 @@ loop:
 		}
 		_, err := c.conn.Write(valToSend)
 		if err != nil {
-			log.Printf("ERROR: %v\n", err)
+			// log.Printf("ERROR: %v\n", err)
 			break loop
 		}
 	}

@@ -147,6 +147,9 @@ func (_ *GameState) RunPlayer(in chan []byte, out chan []byte) {
 	r := bufio.NewReader(os.Stdin)
 	for {
 		data := <- in
+		if expectQuit(data) {
+			return
+		} 
 		fmt.Printf("%s", string(data))
 		if expectResponse(data) {
 			var str string
@@ -171,6 +174,10 @@ func (_ *GameState) GetMaxHostDataSize() int {
 
 func (_ *GameState) GetMaxPlayerDataSize() int {
 	return serverByteSendSize
+}
+
+func expectQuit(data []byte) bool {
+	return strings.Contains(string(data), "quit")
 }
 
 func expectResponse(data []byte) bool {
