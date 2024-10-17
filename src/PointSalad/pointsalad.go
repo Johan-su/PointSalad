@@ -437,13 +437,17 @@ func getSwapActionFromBot(s *GameState) ActorAction {
 	return action
 }
 
+func isWithinAtoF(a byte) bool {
+	return a >= 'A' && a <= 'F'
+}
+
 func getMarketActionFromPlayer(s *GameState, in chan []byte, out chan []byte) ActorAction {
 	assert(in != nil)
 	assert(out != nil)
 
 	action := ActorAction{}
-	for true {
-		out <- []byte(fmt.Sprintf("pick 1 or 2 vegetables example: AB or\npick 1 point card example: 0\n"))
+	for {
+		out <- []byte("pick 1 or 2 vegetables example: AB or\npick 1 point card example: 0\n")
 		input := <-in
 
 		if len(input) == 1 && input[0] >= '0' && input[0] <= '9' {
@@ -686,9 +690,6 @@ func flipCardsFromPiles(s *GameState) {
 	}
 }
 
-func isWithinAtoF(a byte) bool {
-	return a >= 'A' && a <= 'F'
-}
 
 func pickCardToChangeToVeg(s *GameState, in chan []byte, out chan []byte) {
 	for true {
