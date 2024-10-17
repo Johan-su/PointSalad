@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"log"
 	"os"
-	"testing"
 	"reflect"
+	"testing"
 )
 
 var inited bool = false
@@ -38,7 +38,7 @@ func correctPlayerAmount(t *testing.T, expected bool, playerNum int, botNum int)
 func TestPlayerAmount(t *testing.T) {
 	initJson()
 	test_table := []struct {
-		expected   bool
+		expected  bool
 		playerNum int
 		botNum    int
 	}{
@@ -238,7 +238,7 @@ func CorrectVegetableAmount(t *testing.T, actorNum int, expectedNumOfVegetablePe
 func TestCorrectVegetables(t *testing.T) {
 	initJson()
 	test_table := []struct {
-		actorNum                          int
+		actorNum                      int
 		expectedNumOfVegetablePerType int
 	}{
 		{2, 6},
@@ -258,7 +258,7 @@ func TestSwitchingDrawPile(t *testing.T) {
 	initJson()
 	// s, err := createGameState(&jsonCards, 0, 2, 0)
 	// if err != nil {
-		
+
 	// }
 }
 
@@ -287,11 +287,15 @@ func CorrectCalculateScore(t *testing.T, expected_score int, vegetableNum [veget
 func TestCalculateScore(t *testing.T) {
 	initJson()
 
-	test_table := []struct{expected_score int; vegetableNum [vegetableTypeNum]int; card_strs []string} {
+	test_table := []struct {
+		expected_score int
+		vegetableNum   [vegetableTypeNum]int
+		card_strs      []string
+	}{
 		{
 			13,
 			[vegetableTypeNum]int{6, 5, 4, 6, 2, 0},
-			[]string {
+			[]string{
 				"4/ONION,  -2/CARROT,  -2/LETTUCE",
 				"4/LETTUCE,  -2/TOMATO,  -2/CABBAGE",
 				"ONION: EVEN=7, ODD=3",
@@ -309,8 +313,6 @@ func TestCalculateScore(t *testing.T) {
 		CorrectCalculateScore(t, test.expected_score, test.vegetableNum, test.card_strs)
 	}
 
-
 }
-
 
 // ---- End ----

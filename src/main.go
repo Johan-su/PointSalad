@@ -1,8 +1,8 @@
 package main
 
 import (
-	"HomeExam/src/pointsalad"
 	"HomeExam/src/network"
+	"HomeExam/src/pointsalad"
 	"flag"
 	"log"
 )
@@ -56,7 +56,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("%s\n", err)
 		}
-		
+
 		game.RunHost(server.GetReadChannels(), server.GetWriteChannels())
 		server.Close()
 

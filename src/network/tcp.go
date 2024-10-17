@@ -6,9 +6,10 @@ import (
 	"net"
 )
 
-
-
-
+const (
+	pingMagic = "ABCZ"
+	pongMagic = "ZCBA"
+)
 
 type TCPClient struct {
 	conn                 net.Conn
@@ -26,18 +27,17 @@ func (c *TCPClient) Connect(hostname string, port string, clientMaxReceiveSize i
 		return err
 	}
 
-	buf := make([]byte, 4, 4)
-	buf = []byte("ping")
+	buf := []byte(pingMagic)
 	_, err = conn.Write(buf)
 	if err != nil {
 		return err
 	}
-	buf = make([]byte, 4, 4)
+	buf = make([]byte, len(pongMagic))
 	_, err = conn.Read(buf)
 	if err != nil {
 		return err
 	}
-	if string(buf) != "pong" {
+	if string(buf) != pongMagic {
 		return fmt.Errorf("Failed ping pong test\n")
 	}
 
@@ -66,7 +66,6 @@ func (c *TCPClient) GetReadChannel() chan []byte {
 func (c *TCPClient) GetWriteChannel() chan []byte {
 	return c.out
 }
-
 
 func (c *TCPClient) handleRead() {
 	for {
@@ -112,7 +111,7 @@ type TCPServer struct {
 	quitWrite map[int]chan bool
 
 	serverMaxReceiveSize int
-	listener          net.Listener
+	listener             net.Listener
 }
 
 func (server *TCPServer) Init(port string, playerNum int, serverMaxReceiveSize int) error {
@@ -145,17 +144,15 @@ func (server *TCPServer) Init(port string, playerNum int, serverMaxReceiveSize i
 		server.quitRead[id] = make(chan bool)
 		server.quitWrite[id] = make(chan bool)
 
-
-		buf := make([]byte, 4, 4)
+		buf := make([]byte, len(pingMagic))
 		_, err = conn.Read(buf)
 		if err != nil {
 			return err
 		}
-		if string(buf) != "ping" {
+		if string(buf) != pingMagic {
 			return fmt.Errorf("expected ping pong test\n")
 		}
-		buf = make([]byte, 4, 4)
-		buf = []byte("pong")
+		buf = []byte(pongMagic)
 		_, err = conn.Write(buf)
 		if err != nil {
 			return err

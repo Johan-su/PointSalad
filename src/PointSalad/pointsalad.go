@@ -1,6 +1,7 @@
 package pointsalad
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -9,7 +10,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"bufio"
 )
 
 type VegType int
@@ -46,6 +46,24 @@ type ActorData struct {
 type CardSpot struct {
 	hasCard bool
 	card    Card
+}
+
+type JCriteria struct {
+	PEPPER  string
+	LETTUCE string
+	CARROT  string
+	CABBAGE string
+	ONION   string
+	TOMATO  string
+}
+
+type JCard struct {
+	Id       int
+	Criteria JCriteria
+}
+
+type JCards struct {
+	Cards []JCard
 }
 
 // actors are players and bots
@@ -97,7 +115,7 @@ func (state *GameState) RunHost(in map[int]chan []byte, out map[int]chan []byte)
 	for true {
 		flipCardsFromPiles(state)
 		is_bot := in[state.activeActor] == nil
-		
+
 		// get decisions from actor
 		var market_action ActorAction
 		if is_bot {
@@ -109,8 +127,7 @@ func (state *GameState) RunHost(in map[int]chan []byte, out map[int]chan []byte)
 		}
 		broadcastToAll(out, getActionString(state, market_action))
 		doAction(state, market_action)
-	
-		
+
 		if len(state.actorData[state.activeActor].pointPile) > 0 {
 			var swap_action ActorAction
 			if is_bot {
@@ -128,17 +145,17 @@ func (state *GameState) RunHost(in map[int]chan []byte, out map[int]chan []byte)
 				v <- []byte(getActorCardsString(state, i))
 			}
 		}
-	
+
 		if hasWon(state) {
 			broadcastToAll(out, getFinalScoresString(state))
 			break
 		}
-	
+
 		// next actor
 		state.activeActor += 1
 		state.activeActor %= state.playerNum + state.botNum
 	}
-} 
+}
 
 func (_ *GameState) RunPlayer(in chan []byte, out chan []byte) {
 	assert(in != nil)
@@ -146,17 +163,17 @@ func (_ *GameState) RunPlayer(in chan []byte, out chan []byte) {
 
 	r := bufio.NewReader(os.Stdin)
 	for {
-		data := <- in
+		data := <-in
 		if expectQuit(data) {
 			return
-		} 
+		}
 		fmt.Printf("%s", string(data))
 		if expectResponse(data) {
 			var str string
 			{
 				s, err := r.ReadString('\n')
 				if err != nil {
-					log.Fatalf("read string does not end in \\n somehow or EOF")
+					log.Fatalf("ERROR: %s\n", err)
 				}
 				// should work for linux/macos too
 				s = strings.TrimSuffix(s, "\n")
@@ -235,11 +252,10 @@ func assert(c bool) {
 func createGameState(jsonCards *JCards, playerNum int, botNum int, seed int64) (GameState, error) {
 	actorNum := playerNum + botNum
 	assert(actorNum >= 2 && actorNum <= 6)
-	
+
 	s := GameState{}
 
 	rand.Seed(seed)
-
 
 	var ids []int
 	for id, _ := range jsonCards.Cards {
@@ -268,7 +284,6 @@ func createGameState(jsonCards *JCards, playerNum int, botNum int, seed int64) (
 		deck[i], deck[j] = deck[j], deck[i]
 	})
 
-
 	for _, card := range jsonCards.Cards {
 		s.strCriterias = append(s.strCriterias, card.Criteria.PEPPER)
 		s.strCriterias = append(s.strCriterias, card.Criteria.LETTUCE)
@@ -283,7 +298,6 @@ func createGameState(jsonCards *JCards, playerNum int, botNum int, seed int64) (
 		return GameState{}, err
 	}
 	s.criteriaTable = table
-
 
 	pile_size := len(deck) / playPilesNum
 	pile_size_remainder := len(deck) % playPilesNum
@@ -327,7 +341,7 @@ func deepCloneGameState(s *GameState) GameState {
 		new.actorData = append(new.actorData, ActorData{})
 		new.actorData[i].vegetableNum = s.actorData[i].vegetableNum
 		for j := range s.actorData[i].pointPile {
-			new.actorData[i].pointPile = append(new.actorData[i].pointPile, s.actorData[i].pointPile[j])			
+			new.actorData[i].pointPile = append(new.actorData[i].pointPile, s.actorData[i].pointPile[j])
 		}
 	}
 
@@ -335,9 +349,7 @@ func deepCloneGameState(s *GameState) GameState {
 	new.playerNum = s.playerNum
 	new.botNum = s.botNum
 
-
 	assert(fmt.Sprintf("%v", new) == fmt.Sprintf("%v", *s))
-
 
 	return new
 }
@@ -377,11 +389,11 @@ func getMarketActionFromBot(s *GameState) ActorAction {
 			beforeScore := calculateScore(s, s.activeActor)
 
 			new_s := deepCloneGameState(s)
-			
+
 			doAction(&new_s, action)
-	
+
 			AfterScore := calculateScore(&new_s, new_s.activeActor)
-	
+
 			if AfterScore >= beforeScore {
 				break
 			}
@@ -408,11 +420,11 @@ func getSwapActionFromBot(s *GameState) ActorAction {
 			beforeScore := calculateScore(s, s.activeActor)
 
 			new_s := deepCloneGameState(s)
-			
+
 			doAction(&new_s, action)
-	
+
 			AfterScore := calculateScore(&new_s, new_s.activeActor)
-	
+
 			if AfterScore >= beforeScore {
 				break
 			}
@@ -578,7 +590,6 @@ func getCriteriaString(s *GameState, veg_type VegType, id int) string {
 	return s.strCriterias[int(veg_type)+id*vegetableTypeNum]
 }
 
-
 func getMarketString(s *GameState) string {
 	builder := strings.Builder{}
 	builder.WriteString("---- MARKET ----\n")
@@ -615,7 +626,7 @@ func drawFromBot(s *GameState, pile_index int) Card {
 }
 
 func getMaxPileIndex(s *GameState) int {
-	max := 0  
+	max := 0
 	index := -1
 
 	for i, p := range s.piles {
