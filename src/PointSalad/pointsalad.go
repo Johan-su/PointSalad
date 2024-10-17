@@ -1,4 +1,4 @@
-package PointSalad
+package pointsalad
 
 import (
 	"encoding/json"
@@ -71,7 +71,7 @@ func (state *GameState) Init(playerNum int, botNum int) {
 		log.Fatalf("number of players + bots has to be between 2-6\n")
 	}
 
-	data, err := os.ReadFile("PointSaladManifest.json")
+	data, err := os.ReadFile("pointsaladManifest.json")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -177,7 +177,7 @@ func (_ *GameState) GetMaxPlayerDataSize() int {
 }
 
 func expectQuit(data []byte) bool {
-	return strings.Contains(string(data), "quit")
+	return len(data) == 0
 }
 
 func expectResponse(data []byte) bool {

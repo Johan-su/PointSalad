@@ -1,4 +1,4 @@
-package PointSalad
+package pointsalad
 
 import (
 	"fmt"

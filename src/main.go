@@ -1,7 +1,8 @@
 package main
 
 import (
-	"HomeExam/src/PointSalad"
+	"HomeExam/src/pointsalad"
+	"HomeExam/src/network"
 	"flag"
 	"log"
 )
@@ -44,13 +45,13 @@ func main() {
 
 	log.Printf("isServer = %v, hostname = %v port = %v playerNum = %v botNum = %v\n", isServer, hostname, port, playerNum, botNum)
 	var game Game
-	game = &PointSalad.GameState{}
+	game = &pointsalad.GameState{}
 	if isServer {
 
 		game.Init(playerNum, botNum)
 
 		var server Server
-		server = &TCPServer{}
+		server = &network.TCPServer{}
 		err := server.Init(port, playerNum, game.GetMaxHostDataSize())
 		if err != nil {
 			log.Fatalf("%s\n", err)
@@ -61,7 +62,7 @@ func main() {
 
 	} else {
 		var client Client
-		client = &TCPClient{}
+		client = &network.TCPClient{}
 
 		err := client.Connect(hostname, port, game.GetMaxPlayerDataSize())
 		if err != nil {

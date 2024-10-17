@@ -1,4 +1,4 @@
-package PointSalad
+package pointsalad
 
 import (
 	"encoding/json"
@@ -14,7 +14,7 @@ func initJson() {
 	if inited {
 		return
 	}
-	data, err := os.ReadFile("../../PointSaladManifest.json")
+	data, err := os.ReadFile("../../pointsaladManifest.json")
 	if err != nil {
 		log.Fatal(err)
 	}
