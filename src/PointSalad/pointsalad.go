@@ -145,7 +145,7 @@ func (_ *GameState) RunPlayer(in chan []byte, out chan []byte) {
 	assert(out != nil)
 
 	r := bufio.NewReader(os.Stdin)
-	for true {
+	for {
 		data := <- in
 		fmt.Printf("%s", string(data))
 		if expectResponse(data) {

@@ -1,17 +1,18 @@
 package main
 
 import (
+	"fmt"
+	"io"
 	"log"
 	"net"
-	"fmt"
 )
 
 type TCPClient struct {
-	conn              net.Conn
-	in                chan []byte
-	out               chan []byte
-	quitRead          chan bool
-	quitWrite         chan bool
+	conn                 net.Conn
+	in                   chan []byte
+	out                  chan []byte
+	quitRead             chan bool
+	quitWrite            chan bool
 	clientMaxReceiveSize int
 }
 
@@ -37,7 +38,6 @@ func (c *TCPClient) Connect(hostname string, port string, clientMaxReceiveSize i
 		return fmt.Errorf("Failed ping pong test\n")
 	}
 
-
 	c.conn = conn
 	c.in = make(chan []byte)
 	c.out = make(chan []byte)
@@ -52,7 +52,6 @@ func (c *TCPClient) Connect(hostname string, port string, clientMaxReceiveSize i
 func (c *TCPClient) Close() {
 	log.Printf("Closing client\n")
 	c.conn.Close()
-	close(c.out)
 	c.quitRead <- true
 	c.quitWrite <- true
 }
@@ -66,30 +65,35 @@ func (c *TCPClient) GetWriteChannel() chan []byte {
 }
 
 func (c *TCPClient) handleRead() {
+	defer close(c.in)
 loop:
-	for true {
-		buf := make([]byte, c.clientMaxReceiveSize, c.clientMaxReceiveSize)
+	for {
+		buf := make([]byte, c.clientMaxReceiveSize)
 		n, err := c.conn.Read(buf)
 		if err != nil {
-			log.Printf("ERROR: %v\n", err)
-			break loop
+			if err == io.EOF {
+				break loop		
+			} else {
+				log.Printf("ERROR: %v\n", err)
+				break loop
+			}
 		}
 		select {
-		case <-c.quitRead: break loop
+		case <-c.quitRead:
+			return
 		case c.in <- buf[:n]:
 		}
 	}
+	<-c.quitRead
 }
 
 func (c *TCPClient) handleWrite() {
 loop:
-	for true {
+	for {
 		var valToSend []byte
 		select {
 		case <-c.quitWrite:
-			{
-				break loop
-			}
+			return
 		case valToSend = <-c.out:
 		}
 		_, err := c.conn.Write(valToSend)
@@ -98,4 +102,5 @@ loop:
 			break loop
 		}
 	}
+	<-c.quitWrite
 }
