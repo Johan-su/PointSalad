@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"math"
 	"math/rand"
 	"os"
 	"slices"
@@ -53,6 +52,7 @@ type CardSpot struct {
 type GameState struct {
 	strCriterias  []string
 	criteriaTable []Criteria
+
 	// market
 	piles  [][]Card
 	market [6]CardSpot
@@ -103,11 +103,11 @@ func (state *GameState) RunHost(in map[int]chan []byte, out map[int]chan []byte)
 		if is_bot {
 			market_action = getMarketActionFromBot(state)
 		} else {
-			out[state.activeActor] <- []byte(getActorDataString(state, state.activeActor))
+			out[state.activeActor] <- []byte(getActorCardsString(state, state.activeActor))
 			out[state.activeActor] <- []byte(getMarketString(state))
 			market_action = getMarketActionFromPlayer(state, in[state.activeActor], out[state.activeActor])
 		}
-		BroadcastAction(state, market_action, out)
+		broadcastToAll(out, getActionString(state, market_action))
 		doAction(state, market_action)
 	
 		
@@ -116,21 +116,21 @@ func (state *GameState) RunHost(in map[int]chan []byte, out map[int]chan []byte)
 			if is_bot {
 				swap_action = getSwapActionFromBot(state)
 			} else {
-				out[state.activeActor] <- []byte(getActorDataString(state, state.activeActor))
+				out[state.activeActor] <- []byte(getActorCardsString(state, state.activeActor))
 				swap_action = getSwapActionFromPlayer(state, in[state.activeActor], out[state.activeActor])
 			}
-			BroadcastAction(state, swap_action, out)
+			broadcastToAll(out, getActionString(state, swap_action))
 			doAction(state, swap_action)
 		}
 		// show hand to other players
 		for i, v := range out {
 			if i != state.activeActor {
-				v <- []byte(getActorDataString(state, i))
+				v <- []byte(getActorCardsString(state, i))
 			}
 		}
 	
 		if hasWon(state) {
-			broadcastWinner(state, out)
+			broadcastToAll(out, getFinalScoresString(state))
 			break
 		}
 	
@@ -194,7 +194,7 @@ func hasWon(state *GameState) bool {
 	return true
 }
 
-func broadcastWinner(state *GameState, out map[int]chan []byte) {
+func getFinalScoresString(state *GameState) string {
 	type Score struct {
 		score   int
 		actorId int
@@ -211,15 +211,18 @@ func broadcastWinner(state *GameState, out map[int]chan []byte) {
 
 	highScore := scores[0].score
 
-	broadcastToAll(out, fmt.Sprintf("---- WINNER ----\n"))
+	builder := strings.Builder{}
+
+	builder.WriteString("---- Final scores ----\n")
 	for _, s := range scores {
-		broadcastToAll(out, fmt.Sprintf("Player %d with score %d", s.actorId, s.score, ))
+		builder.WriteString(fmt.Sprintf("Player %d with score %d", s.actorId, s.score))
 		if s.score == highScore {
-			broadcastToAll(out, " Winner\n")
+			builder.WriteString(" Winner\n")
 		} else {
-			broadcastToAll(out, "\n")
+			builder.WriteString("\n")
 		}
 	}
+	return builder.String()
 }
 
 func assert(c bool) {
@@ -232,9 +235,11 @@ func assert(c bool) {
 func createGameState(jsonCards *JCards, playerNum int, botNum int, seed int64) (GameState, error) {
 	actorNum := playerNum + botNum
 	assert(actorNum >= 2 && actorNum <= 6)
+	
+	s := GameState{}
 
-	log.Printf("seed = %d\n", seed)
 	rand.Seed(seed)
+
 
 	var ids []int
 	for id, _ := range jsonCards.Cards {
@@ -263,7 +268,6 @@ func createGameState(jsonCards *JCards, playerNum int, botNum int, seed int64) (
 		deck[i], deck[j] = deck[j], deck[i]
 	})
 
-	s := GameState{}
 
 	for _, card := range jsonCards.Cards {
 		s.strCriterias = append(s.strCriterias, card.Criteria.PEPPER)
@@ -624,7 +628,7 @@ func getMaxPileIndex(s *GameState) int {
 	return index
 }
 
-func getActorDataString(s *GameState, actorId int) string {
+func getActorCardsString(s *GameState, actorId int) string {
 	assert(s.activeActor < len(s.actorData))
 	builder := strings.Builder{}
 	builder.WriteString(fmt.Sprintf("---- Player %d ----\n", s.activeActor))
@@ -727,16 +731,18 @@ func calculateScore(s *GameState, actorId int) int {
 }
 
 // should be called before doAction
-func BroadcastAction(s *GameState, action ActorAction, out map[int]chan []byte) {
+func getActionString(s *GameState, action ActorAction) string {
 	assert(IsActionLegal(s, action) == nil)
-	broadcastToAll(out, "---- Action ----\n")
+	builder := strings.Builder{}
+
+	builder.WriteString("---- Action ----\n")
 	switch action.kind {
 	case INVALID:
 		panic("unreachable")
 	case PICK_VEG_FROM_MARKET:
 		{
 			for i := range action.amount {
-				broadcastToAll(out, fmt.Sprintf("Player %d drew %v from market\n", s.activeActor, s.market[action.ids[i]].card.vegType.String()))
+				builder.WriteString(fmt.Sprintf("Player %d drew %v from market\n", s.activeActor, s.market[action.ids[i]].card.vegType.String()))
 			}
 		}
 	case PICK_POINT_FROM_MARKET:
@@ -745,20 +751,21 @@ func BroadcastAction(s *GameState, action ActorAction, out map[int]chan []byte) 
 				pile := s.piles[action.ids[i]]
 				card := pile[len(pile)-1]
 				criteria := getCriteriaString(s, card.vegType, card.id)
-				broadcastToAll(out, fmt.Sprintf("Player %d drew %v from market\n", s.activeActor, criteria))
+				builder.WriteString(fmt.Sprintf("Player %d drew %v from market\n", s.activeActor, criteria))
 			}
 		}
 	case PICK_TO_SWAP:
 		{
 			if action.amount == 0 {
-				broadcastToAll(out, fmt.Sprintf("Player %d did not swap any card\n", s.activeActor))
+				builder.WriteString(fmt.Sprintf("Player %d did not swap any card\n", s.activeActor))
 			} else {
 				for i := range action.amount {
 					card := s.actorData[s.activeActor].pointPile[action.ids[i]]
 					criteria := getCriteriaString(s, card.vegType, card.id)
-					broadcastToAll(out, fmt.Sprintf("Player %d swapped %v to %v\n", s.activeActor, criteria, card.vegType))
+					builder.WriteString(fmt.Sprintf("Player %d swapped %v to %v\n", s.activeActor, criteria, card.vegType))
 				}
 			}
 		}
 	}
+	return builder.String()
 }
