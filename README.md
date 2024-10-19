@@ -9,7 +9,7 @@ All commands are assumed to be run in the repository directory
 ## Build and run 
 
 ```console
-go build -o pointsalad ./src
+go build -o pointsalad ./cmd
 ./pointsalad -help
 ```
 
@@ -28,7 +28,7 @@ go build -o pointsalad ./src
 ## Test Point salad
 
 ```console
-go test  ./src/pointsalad
+go test  ./game/pointsalad
 ```
 
-Runs all xxx_test.go files in src/pointsalad folder
+Runs all xxx_test.go files in /game/pointsalad folder
