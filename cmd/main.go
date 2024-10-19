@@ -1,35 +1,15 @@
 package main
 
 import (
-	"HomeExam/src/network"
-	"HomeExam/src/pointsalad"
+	"HomeExam/game"
+	"HomeExam/network"
 	"flag"
 	"log"
 )
 
-type Game interface {
-	Init(playerNum int, botNum int)
-	RunHost(in map[int]chan []byte, out map[int]chan []byte)
-	RunPlayer(in chan []byte, out chan []byte)
-	GetMaxHostDataSize() int
-	GetMaxPlayerDataSize() int
-}
-
-type Client interface {
-	Connect(hostname string, port string, clientMaxReceiveSize int) error
-	Close()
-	GetReadChannel() chan []byte
-	GetWriteChannel() chan []byte
-}
-
-type Server interface {
-	Init(port string, playerNum int, serverMaxReceiveSize int) error
-	Close()
-	GetReadChannels() map[int]chan []byte
-	GetWriteChannels() map[int]chan []byte
-}
 
 func main() {
+
 	var isServer bool
 	var hostname string
 	var port string
@@ -44,14 +24,14 @@ func main() {
 	flag.Parse()
 
 	log.Printf("isServer = %v, hostname = %v port = %v playerNum = %v botNum = %v\n", isServer, hostname, port, playerNum, botNum)
-	var game Game
-	game = &pointsalad.GameState{}
+
+	server, client := network.CreateTCPServerClient()
+
+	game := game.CreatePointSalad()
 	if isServer {
 
 		game.Init(playerNum, botNum)
 
-		var server Server
-		server = &network.TCPServer{}
 		err := server.Init(port, playerNum, game.GetMaxHostDataSize())
 		if err != nil {
 			log.Fatalf("%s\n", err)
@@ -61,8 +41,6 @@ func main() {
 		server.Close()
 
 	} else {
-		var client Client
-		client = &network.TCPClient{}
 
 		err := client.Connect(hostname, port, game.GetMaxPlayerDataSize())
 		if err != nil {

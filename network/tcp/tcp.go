@@ -1,4 +1,4 @@
-package network
+package tcp
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ const (
 	pongMagic = "ZCBA"
 )
 
-type TCPClient struct {
+type Client struct {
 	conn                 net.Conn
 	in                   chan []byte
 	out                  chan []byte
@@ -20,7 +20,7 @@ type TCPClient struct {
 	clientMaxReceiveSize int
 }
 
-func (c *TCPClient) Connect(hostname string, port string, clientMaxReceiveSize int) error {
+func (c *Client) Connect(hostname string, port string, clientMaxReceiveSize int) error {
 	c.clientMaxReceiveSize = clientMaxReceiveSize
 	conn, err := net.Dial("tcp", hostname+":"+port)
 	if err != nil {
@@ -52,22 +52,22 @@ func (c *TCPClient) Connect(hostname string, port string, clientMaxReceiveSize i
 	return nil
 }
 
-func (c *TCPClient) Close() {
+func (c *Client) Close() {
 	log.Printf("Closing client\n")
 	c.conn.Close()
 	c.quitRead <- true
 	c.quitWrite <- true
 }
 
-func (c *TCPClient) GetReadChannel() chan []byte {
+func (c *Client) GetReadChannel() chan []byte {
 	return c.in
 }
 
-func (c *TCPClient) GetWriteChannel() chan []byte {
+func (c *Client) GetWriteChannel() chan []byte {
 	return c.out
 }
 
-func (c *TCPClient) handleRead() {
+func (c *Client) handleRead() {
 	for {
 		buf := make([]byte, c.clientMaxReceiveSize)
 		n, err := c.conn.Read(buf)
@@ -85,7 +85,7 @@ func (c *TCPClient) handleRead() {
 	}
 }
 
-func (c *TCPClient) handleWrite() {
+func (c *Client) handleWrite() {
 loop:
 	for {
 		var valToSend []byte
@@ -103,7 +103,7 @@ loop:
 	<-c.quitWrite
 }
 
-type TCPServer struct {
+type Server struct {
 	conn      []net.Conn
 	out       map[int]chan []byte
 	in        map[int]chan []byte
@@ -114,7 +114,7 @@ type TCPServer struct {
 	listener             net.Listener
 }
 
-func (server *TCPServer) Init(port string, playerNum int, serverMaxReceiveSize int) error {
+func (server *Server) Init(port string, playerNum int, serverMaxReceiveSize int) error {
 	server.serverMaxReceiveSize = serverMaxReceiveSize
 	log.Printf("listening on port %v\n", port)
 	ln, err := net.Listen("tcp", ":"+port)
@@ -165,7 +165,7 @@ func (server *TCPServer) Init(port string, playerNum int, serverMaxReceiveSize i
 	return nil
 }
 
-func (s *TCPServer) Close() {
+func (s *Server) Close() {
 	log.Printf("Closing server\n")
 	for k := range s.in {
 		err := s.conn[k].Close()
@@ -180,15 +180,15 @@ func (s *TCPServer) Close() {
 	s.listener.Close()
 }
 
-func (s *TCPServer) GetReadChannels() map[int]chan []byte {
+func (s *Server) GetReadChannels() map[int]chan []byte {
 	return s.in
 }
 
-func (s *TCPServer) GetWriteChannels() map[int]chan []byte {
+func (s *Server) GetWriteChannels() map[int]chan []byte {
 	return s.out
 }
 
-func handleRead(s *TCPServer, connId int) {
+func handleRead(s *Server, connId int) {
 	for {
 		buf := make([]byte, s.serverMaxReceiveSize, s.serverMaxReceiveSize)
 		read, err := s.conn[connId].Read(buf)
@@ -205,7 +205,7 @@ func handleRead(s *TCPServer, connId int) {
 	}
 }
 
-func handleWrite(s *TCPServer, connId int) {
+func handleWrite(s *Server, connId int) {
 	var buf []byte
 	for {
 		select {

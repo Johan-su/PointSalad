@@ -26,49 +26,6 @@ func initJson() {
 	}
 }
 
-// ---- Requirement 1 ----
-func correctPlayerAmount(t *testing.T, expected bool, playerNum int, botNum int) {
-	// s, err := createGameState(&jsonCards, playerNum, botNum, 0)
-	// value := err != nil
-	// if expected != value {
-	// 	t.Errorf("Expected %v got %v with %v %v\n", expected, value, playerNum, botNum)
-	// }
-}
-
-func TestPlayerAmount(t *testing.T) {
-	initJson()
-	test_table := []struct {
-		expected  bool
-		playerNum int
-		botNum    int
-	}{
-		{false, -1, -1},
-		// players
-		{false, 0, 0},
-		{false, 1, 0},
-		{true, 2, 0},
-		{true, 3, 0},
-		{true, 4, 0},
-		{true, 5, 0},
-		{true, 6, 0},
-		{false, 7, 0},
-		{false, 0, 1},
-		// bots
-		{false, 0, 1},
-		{true, 0, 2},
-		{true, 0, 3},
-		{true, 0, 4},
-		{true, 0, 5},
-		{true, 0, 6},
-		{false, 0, 7},
-		{false, 0, 8},
-	}
-	for _, test := range test_table {
-		correctPlayerAmount(t, test.expected, test.playerNum, test.botNum)
-	}
-}
-
-// ---- Requirement 2 ----
 func CorrectParsing(t *testing.T, criteria string, expected Criteria) {
 	c, err := parseCriteria(criteria)
 	if err != nil {
@@ -202,6 +159,65 @@ func TestCriteriaParsing(t *testing.T) {
 	}
 }
 
+
+
+// ---- Requirement 1 ----
+func correctPlayerAmount(t *testing.T, expected bool, playerNum int, botNum int) {
+	// s, err := createGameState(&jsonCards, playerNum, botNum, 0)
+	// value := err != nil
+	// if expected != value {
+	// 	t.Errorf("Expected %v got %v with %v %v\n", expected, value, playerNum, botNum)
+	// }
+}
+
+func TestPlayerAmount(t *testing.T) {
+	initJson()
+	test_table := []struct {
+		expected  bool
+		playerNum int
+		botNum    int
+	}{
+		{false, -1, -1},
+		// players
+		{false, 0, 0},
+		{false, 1, 0},
+		{true, 2, 0},
+		{true, 3, 0},
+		{true, 4, 0},
+		{true, 5, 0},
+		{true, 6, 0},
+		{false, 7, 0},
+		{false, 0, 1},
+		// bots
+		{false, 0, 1},
+		{true, 0, 2},
+		{true, 0, 3},
+		{true, 0, 4},
+		{true, 0, 5},
+		{true, 0, 6},
+		{false, 0, 7},
+		{false, 0, 8},
+	}
+	for _, test := range test_table {
+		correctPlayerAmount(t, test.expected, test.playerNum, test.botNum)
+	}
+}
+
+// ---- Requirement 2 ----
+
+
+func TestCardAmount(t *testing.T) {
+	initJson()
+
+	cardCount := len(jsonCards.Cards) * 6
+	expected := 108
+	if cardCount != expected {
+		t.Errorf("expected %v got %v\n", expected, cardCount)
+	}
+}
+
+
+
 // ---- Requirement 3 ----
 
 func CorrectVegetableAmount(t *testing.T, actorNum int, expectedNumOfVegetablePerType int) {
@@ -264,7 +280,7 @@ func TestCreate3DrawPiles(t *testing.T) {
 	if len(s.piles) != pileAmount {
 		t.Errorf("Expected the amount of draw piles to be %d\n", pileAmount)
 	}
-	pileLen = len(s.piles[0])
+	pileLen := len(s.piles[0])
 	for i, pile := range s.piles {
 		if len(pile) != pileLen {
 			t.Errorf("Expected equal pile length %d but got %d for id %d\n", pileLen, len(pile), i)
@@ -280,6 +296,33 @@ func TestCardFlipping(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create GameState")
 	}
+
+	for _, cardspot := range s.market {
+		if cardspot.hasCard {
+			t.Errorf("Market has cards before flipping cards\n")
+		}
+	}  
+	
+	top2 := [3][2]Card{}
+	for i, pile := range s.piles {
+		top2[i][0] = pile[len(pile) - 1]
+		top2[i][1] = pile[len(pile) - 2]
+	}
+	flipCardsFromPiles(&s)
+
+	for x := range 3 {
+		for y := range 2 {
+			if !s.market[x + 3 * y].hasCard {
+				t.Errorf("Expected card in market after flipping\n")
+			}
+			marketCard := s.market[x + 3 * y].card 
+			top2Card := top2[x][y] 
+			if marketCard != top2Card  {
+				t.Errorf("expected card %v but got %v\n", top2Card, marketCard)
+			}
+		}
+	}
+
 }
 
 // ---- Requirement 6 ----
@@ -288,25 +331,60 @@ func TestRandomStartingPlayer(t *testing.T) {
 
 	startingPlayerIdsAmount := [6]int{}
 
-	testAmount := 100000
+	testAmount := 10000
 
 	for i := range testAmount  {
-		s, err := createGameState(&jsonCards, 0, 6, i)
+		s, err := createGameState(&jsonCards, 0, 6, int64(i))
 		if err != nil {
 			t.Fatalf("Failed to create GameState")
 		}
 		startingPlayerIdsAmount[s.activeActor] += 1
 	}
 
-	for _, amount := range startingPlayerIdsAmount {
+	for i, amount := range startingPlayerIdsAmount {
 		val := float32(amount) / float32(testAmount) 
 		if !(val > 0.16 && val < 0.17) {
-			t.Errorf("Starting players are not random")
+			t.Errorf("player amounts are not uniformly distributed expected approx %f got %f for player %d", 1.0 / 6.0, val, i)
 		}
 	}
 }
 
+// ---- Requirement 7 & 8 ----
+
+// ---- Requirement 9 ----
+func TestShowHandToOtherPlayers(t *testing.T) {
+	initJson()
+	var host Game
+	host := &GameState{}
+	host.Init(1, 1)
+
+	clientRead := make(chan [byte])
+	clientWrite := make(chan [byte])
+
+
+	hostRead := make(map[int]chan [byte])
+	hostWrite := make(map[int]chan [byte])
+
+
+	hostRead[0] = clientWrite
+	hostWrite[0] = clientRead
+
+	var player Game
+	player := &GameState{}
+
+
+	go host.RunHost(hostRead, hostWrite)
+	go player.RunPlayer(clientRead, clientWrite)
+
+
+	
+
+
+}
+
 // ---- Requirement 10 ----
+
+// ---- Requirement 11 ----
 
 func TestSwitchingDrawPile(t *testing.T) {
 	initJson()
