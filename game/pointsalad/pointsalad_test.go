@@ -6,6 +6,7 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"strings"
 )
 
 var inited bool = false
@@ -163,11 +164,11 @@ func TestCriteriaParsing(t *testing.T) {
 
 // ---- Requirement 1 ----
 func correctPlayerAmount(t *testing.T, expected bool, playerNum int, botNum int) {
-	// s, err := createGameState(&jsonCards, playerNum, botNum, 0)
-	// value := err != nil
-	// if expected != value {
-	// 	t.Errorf("Expected %v got %v with %v %v\n", expected, value, playerNum, botNum)
-	// }
+	_, err := createGameState(&jsonCards, playerNum, botNum, 0)
+	value := err == nil
+	if expected != value {
+		t.Errorf("Expected %v got %v with %v %v\n", expected, value, playerNum, botNum)
+	}
 }
 
 func TestPlayerAmount(t *testing.T) {
@@ -354,32 +355,48 @@ func TestRandomStartingPlayer(t *testing.T) {
 // ---- Requirement 9 ----
 func TestShowHandToOtherPlayers(t *testing.T) {
 	initJson()
-	var host Game
-	host := &GameState{}
-	host.Init(1, 1)
-
-	clientRead := make(chan [byte])
-	clientWrite := make(chan [byte])
-
-
-	hostRead := make(map[int]chan [byte])
-	hostWrite := make(map[int]chan [byte])
-
-
-	hostRead[0] = clientWrite
-	hostWrite[0] = clientRead
-
-	var player Game
-	player := &GameState{}
-
-
-	go host.RunHost(hostRead, hostWrite)
-	go player.RunPlayer(clientRead, clientWrite)
-
-
+	// only works with 2 for now
+	playerAmount := 2
+	host, err := createGameState(&jsonCards, playerAmount, 0, 0)
+	if err != nil {
+		t.Fatalf("Failed to create GameState")
+	}
+	host.activeActor = 0
 	
+	hostRead := make(map[int]chan []byte)
+	hostWrite := make(map[int]chan []byte)
 
 
+	// create clients to check for hand string	
+	for i := range playerAmount {
+		clientRead := make(chan []byte)
+		clientWrite := make(chan []byte)
+		hostRead[i] = clientWrite
+		hostWrite[i] = clientRead  
+		if i != 0 {
+			// dummyClient read
+			go func() {
+				
+				// action
+				<- clientRead
+				// action cards
+				in := string(<- clientRead)
+				// player's turn
+				<- clientRead
+				<- clientRead
+				expected := getActorCardsString(&host, 0)
+				if in != expected {
+					t.Errorf("expected %v got %v for client %d\n", expected, in, i)
+				}
+				clientWrite <- []byte("Q")
+			}()
+		}
+	}
+
+	player0Input := "AB\n"
+	go runPlayerWithReader(hostWrite[0], hostRead[0], strings.NewReader(player0Input))
+	
+	host.RunHost(hostRead, hostWrite)
 }
 
 // ---- Requirement 10 ----
@@ -388,10 +405,10 @@ func TestShowHandToOtherPlayers(t *testing.T) {
 
 func TestSwitchingDrawPile(t *testing.T) {
 	initJson()
-	// s, err := createGameState(&jsonCards, 0, 2, 0)
-	// if err != nil {
-
-	// }
+	s, err := createGameState(&jsonCards, 0, 2, 0)
+	if err != nil {
+		t.Fatalf("Failed to create GameState")
+	}
 }
 
 // ---- Requirement 13 ----
@@ -438,6 +455,11 @@ func TestCalculateScore(t *testing.T) {
 			24,
 			[vegetableTypeNum]int{2, 15, 2, 2, 7, 2},
 			[]string{"COMPLETE SET = 12"},
+		},
+		{
+			0,
+			[vegetableTypeNum]int{0, 0, 0, 0, 0, 0},
+			[]string{"3 / VEGETABLE TYPE >=2"},
 		},
 	}
 
