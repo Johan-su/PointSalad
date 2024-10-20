@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"io"
 	"time"
 )
 
@@ -67,14 +68,20 @@ type JCards struct {
 	Cards []JCard
 }
 
+type Market struct {
+	// the amount of piles is the width
+	piles  [][]Card
+	// the amount of cardSpots has to be a multiple of the amount of piles
+	cardSpots []CardSpot
+}
+
 // actors are players and bots
 type GameState struct {
 	strCriterias  []string
 	criteriaTable []Criteria
 
 	// market
-	piles  [][]Card
-	market [6]CardSpot
+	market Market
 
 	//
 	actorData   []ActorData
@@ -114,18 +121,37 @@ func (state *GameState) Init(playerNum int, botNum int) {
 }
 
 func (state *GameState) RunHost(in map[int]chan []byte, out map[int]chan []byte) {
-	for true {
+	var err error
+	for _, v := range in {
+		assert(v != nil)
+	}
+	for _, v := range out {
+		assert(v != nil)
+	}
+	for {
 		flipCardsFromPiles(state)
 		is_bot := in[state.activeActor] == nil
-
+		
 		// get decisions from actor
 		var market_action ActorAction
 		if is_bot {
 			market_action = getMarketActionFromBot(state)
 		} else {
-			out[state.activeActor] <- []byte(getActorCardsString(state, state.activeActor))
-			out[state.activeActor] <- []byte(getMarketString(state))
-			market_action = getMarketActionFromPlayer(state, in[state.activeActor], out[state.activeActor])
+			s := getActorCardsString(state, state.activeActor) + getMarketString(state)
+			out[state.activeActor] <- []byte(s)
+			for {		
+				out[state.activeActor] <- []byte("pick 1 or 2 vegetables example: AB or\npick 1 point card example: 0\n")
+				input := <-in[state.activeActor]
+				if len(input) == 0 || (len(input) == 1 && input[0] == 'Q') {
+					return
+				}
+				market_action, err = parseMarketActionFromPlayer(state, input)
+				if err != nil {
+					out[state.activeActor] <- []byte(fmt.Sprintf("%v\n", err))
+				} else {
+					break
+				}
+			}
 		}
 		broadcastToAll(out, getActionString(state, market_action))
 		doAction(state, market_action)
@@ -136,16 +162,29 @@ func (state *GameState) RunHost(in map[int]chan []byte, out map[int]chan []byte)
 				swap_action = getSwapActionFromBot(state)
 			} else {
 				out[state.activeActor] <- []byte(getActorCardsString(state, state.activeActor))
-				swap_action = getSwapActionFromPlayer(state, in[state.activeActor], out[state.activeActor])
+				for {		
+					out[state.activeActor] <- []byte(fmt.Sprintf("pick 0-1 point card to flip to vegetable, type n to pick none example: 5\n"))
+					input := <-in[state.activeActor]
+					if len(input) == 0 || (len(input) == 1 && input[0] == 'Q') {
+						return
+					}
+					swap_action, err = parseSwapActionFromPlayer(state, input)
+					if err != nil {
+						out[state.activeActor] <- []byte(fmt.Sprintf("%v\n", err))
+					} else {
+						break
+					}
+				}
 			}
 			broadcastToAll(out, getActionString(state, swap_action))
 			doAction(state, swap_action)
 		}
-		// show hand to other players
-		for i, v := range out {
-			if i != state.activeActor {
-				v <- []byte(getActorCardsString(state, i))
+		// show hand to all other players
+		for k, o := range out {
+			if k == state.activeActor {
+				continue
 			}
+			o <- []byte(getActorCardsString(state, state.activeActor))
 		}
 
 		if hasWon(state) {
@@ -160,10 +199,24 @@ func (state *GameState) RunHost(in map[int]chan []byte, out map[int]chan []byte)
 }
 
 func (_ *GameState) RunPlayer(in chan []byte, out chan []byte) {
+	runPlayerWithReader(in, out, bufio.NewReader(os.Stdin))
+}
+
+func (_ *GameState) GetMaxHostDataSize() int {
+	return serverByteReceiveSize
+}
+
+func (_ *GameState) GetMaxPlayerDataSize() int {
+	return serverByteSendSize
+}
+
+
+func runPlayerWithReader(in chan []byte, out chan []byte, r io.Reader) {
 	assert(in != nil)
 	assert(out != nil)
+	assert(r != nil)
 
-	r := bufio.NewReader(os.Stdin)
+	scan := bufio.NewScanner(r)
 	for {
 		data := <-in
 		if expectQuit(data) {
@@ -173,10 +226,14 @@ func (_ *GameState) RunPlayer(in chan []byte, out chan []byte) {
 		if expectResponse(data) {
 			var str string
 			{
-				s, err := r.ReadString('\n')
-				if err != nil {
-					log.Fatalf("ERROR: %s\n", err)
+				if !scan.Scan() {
+					err := scan.Err()
+					if err != nil {
+						log.Fatalf("ERROR: %s\n", err)
+					}
+					return
 				}
+				s := scan.Text()
 				// should work for linux/macos too
 				s = strings.TrimSuffix(s, "\n")
 				s = strings.TrimSuffix(s, "\r")
@@ -187,13 +244,6 @@ func (_ *GameState) RunPlayer(in chan []byte, out chan []byte) {
 	}
 }
 
-func (_ *GameState) GetMaxHostDataSize() int {
-	return serverByteReceiveSize
-}
-
-func (_ *GameState) GetMaxPlayerDataSize() int {
-	return serverByteSendSize
-}
 
 func expectQuit(data []byte) bool {
 	return len(data) == 0
@@ -253,7 +303,9 @@ func assert(c bool) {
 
 func createGameState(jsonCards *JCards, playerNum int, botNum int, seed int64) (GameState, error) {
 	actorNum := playerNum + botNum
-	assert(actorNum >= 2 && actorNum <= 6)
+	if !(actorNum >= 2 && actorNum <= 6) {
+		return GameState{}, fmt.Errorf("Number of players + bots have to be between 2-6")
+	}
 
 	s := GameState{}
 
@@ -358,235 +410,6 @@ func deepCloneGameState(s *GameState) GameState {
 	return new
 }
 
-type ActorActionType int
-
-const (
-	INVALID                ActorActionType = iota
-	PICK_VEG_FROM_MARKET   ActorActionType = iota
-	PICK_POINT_FROM_MARKET ActorActionType = iota
-	PICK_TO_SWAP           ActorActionType = iota
-)
-
-type ActorAction struct {
-	kind   ActorActionType
-	amount int
-	ids    [2]int
-}
-
-func getMarketActionFromBot(s *GameState) ActorAction {
-	var action ActorAction
-	for true {
-		action = ActorAction{}
-		if rand.Intn(2) == 0 {
-			action.kind = PICK_VEG_FROM_MARKET
-			action.amount = rand.Intn(2) + 1
-			for i := range action.amount {
-				action.ids[i] = rand.Intn(len(s.market))
-			}
-		} else {
-			action.kind = PICK_POINT_FROM_MARKET
-			action.amount = 1
-			action.ids[0] = rand.Intn(len(s.piles))
-		}
-		err := IsActionLegal(s, action)
-		if err == nil {
-			beforeScore := calculateScore(s, s.activeActor)
-
-			new_s := deepCloneGameState(s)
-
-			doAction(&new_s, action)
-
-			AfterScore := calculateScore(&new_s, new_s.activeActor)
-
-			if AfterScore >= beforeScore {
-				break
-			}
-		}
-	}
-	return action
-}
-
-func getSwapActionFromBot(s *GameState) ActorAction {
-	assert(len(s.actorData[s.activeActor].pointPile) > 0)
-
-	action := ActorAction{}
-	for true {
-		action.kind = PICK_TO_SWAP
-		action.amount = rand.Intn(2)
-
-		for i := range action.amount {
-			n := len(s.actorData[s.activeActor].pointPile)
-			action.ids[i] = rand.Intn(n)
-		}
-
-		err := IsActionLegal(s, action)
-		if err == nil {
-			beforeScore := calculateScore(s, s.activeActor)
-
-			new_s := deepCloneGameState(s)
-
-			doAction(&new_s, action)
-
-			AfterScore := calculateScore(&new_s, new_s.activeActor)
-
-			if AfterScore >= beforeScore {
-				break
-			}
-		}
-	}
-	return action
-}
-
-func isWithinAtoF(a byte) bool {
-	return a >= 'A' && a <= 'F'
-}
-
-func getMarketActionFromPlayer(s *GameState, in chan []byte, out chan []byte) ActorAction {
-	assert(in != nil)
-	assert(out != nil)
-
-	action := ActorAction{}
-	for {
-		out <- []byte("pick 1 or 2 vegetables example: AB or\npick 1 point card example: 0\n")
-		input := <-in
-
-		if len(input) == 1 && input[0] >= '0' && input[0] <= '9' {
-			index := int(input[0] - '0')
-			action = ActorAction{kind: PICK_POINT_FROM_MARKET, amount: 1, ids: [2]int{index, 0}}
-
-		} else if len(input) == 1 && isWithinAtoF(input[0]) {
-			index := int(input[0] - 'A')
-			action = ActorAction{kind: PICK_VEG_FROM_MARKET, amount: 1, ids: [2]int{index, 0}}
-
-		} else if len(input) == 2 && isWithinAtoF(input[0]) && isWithinAtoF(input[1]) {
-			indicies := [2]int{int(input[0] - 'A'), int(input[1] - 'A')}
-			action = ActorAction{kind: PICK_VEG_FROM_MARKET, amount: 2, ids: indicies}
-
-		} else {
-			continue
-		}
-		err := IsActionLegal(s, action)
-		if err != nil {
-			out <- []byte(fmt.Sprintf("%v\n", err))
-		} else {
-			break
-		}
-	}
-	return action
-}
-
-func getSwapActionFromPlayer(s *GameState, in chan []byte, out chan []byte) ActorAction {
-	assert(in != nil)
-	assert(out != nil)
-	assert(len(s.actorData[s.activeActor].pointPile) > 0)
-
-	action := ActorAction{}
-	for true {
-		out <- []byte(fmt.Sprintf("pick 0-1 point card to flip to vegetable, type n to pick none example: 5\n"))
-		input := <-in
-
-		if input[0] == 'n' {
-			action = ActorAction{kind: PICK_TO_SWAP, amount: 0}
-		} else {
-			index, err := strconv.Atoi(string(input))
-			if err != nil {
-				out <- []byte(fmt.Sprintf("Expected a number or 'n'\n"))
-				continue
-			}
-			action = ActorAction{kind: PICK_TO_SWAP, amount: 1, ids: [2]int{index, 0}}
-		}
-		err := IsActionLegal(s, action)
-		if err != nil {
-			out <- []byte(fmt.Sprintf("%v\n", err))
-		} else {
-			break
-		}
-	}
-	return action
-}
-
-func IsActionLegal(s *GameState, action ActorAction) error {
-	switch action.kind {
-	case INVALID:
-		return fmt.Errorf("Invalid action kind")
-	case PICK_VEG_FROM_MARKET:
-		{
-			if action.amount < 1 || action.amount > 2 {
-				return fmt.Errorf("Amount of actions outside of range: %d", action.amount)
-			}
-			for i := range action.amount {
-				if action.ids[i] < 0 || action.ids[i] >= len(s.market) {
-					return fmt.Errorf("Cannot take card outside of market range")
-				}
-				if !s.market[action.ids[i]].hasCard {
-					return fmt.Errorf("Cannot take card from empty market spot")
-				}
-			}
-		}
-	case PICK_POINT_FROM_MARKET:
-		{
-			if action.amount != 1 {
-				return fmt.Errorf("Amount of actions outside of range: %d", action.amount)
-			}
-			if action.ids[0] < 0 || action.ids[0] >= len(s.piles) {
-				return fmt.Errorf("Cannot take card outside of pile range")
-			}
-			if len(s.piles[action.ids[0]]) == 0 {
-				return fmt.Errorf("Cannot take card from empty pile")
-			}
-		}
-	case PICK_TO_SWAP:
-		{
-			if action.amount < 0 || action.amount > 1 {
-				return fmt.Errorf("Amount of actions outside of range: %d", action.amount)
-			}
-			if action.amount == 1 {
-				if action.ids[0] < 0 || action.ids[0] >= len(s.actorData[s.activeActor].pointPile) {
-					return fmt.Errorf("Cannot take card outside of pile range")
-				}
-			}
-		}
-	}
-	return nil
-}
-
-func doAction(s *GameState, action ActorAction) {
-	assert(IsActionLegal(s, action) == nil)
-
-	switch action.kind {
-	case INVALID:
-		panic("unreachable")
-	case PICK_VEG_FROM_MARKET:
-		{
-			for i := range action.amount {
-				card := s.market[action.ids[i]].card
-				s.actorData[s.activeActor].vegetableNum[card.vegType] += 1
-				s.market[action.ids[i]].hasCard = false
-			}
-		}
-	case PICK_POINT_FROM_MARKET:
-		{
-			for i := range action.amount {
-				card := drawFromTop(s, action.ids[i])
-				s.actorData[s.activeActor].pointPile = append(s.actorData[s.activeActor].pointPile, card)
-			}
-		}
-	case PICK_TO_SWAP:
-		{
-			if action.amount == 1 {
-				veg_type := s.actorData[s.activeActor].pointPile[action.ids[0]].vegType
-				s.actorData[s.activeActor].vegetableNum[int(veg_type)] += 1
-
-				// remove element
-				for i := action.ids[0]; i < len(s.actorData[s.activeActor].pointPile)-1; i += 1 {
-					s.actorData[s.activeActor].pointPile[i] = s.actorData[s.activeActor].pointPile[i+1]
-				}
-				s.actorData[s.activeActor].pointPile = s.actorData[s.activeActor].pointPile[0 : len(s.actorData[s.activeActor].pointPile)-1]
-			}
-		}
-	}
-}
-
 func broadcastToAll(out map[int]chan []byte, str string) {
 	fmt.Print(str)
 	for _, value := range out {
@@ -648,26 +471,26 @@ func getMaxPileIndex(s *GameState) int {
 }
 
 func getActorCardsString(s *GameState, actorId int) string {
-	assert(s.activeActor < len(s.actorData))
+	assert(actorId < len(s.actorData))
 	builder := strings.Builder{}
-	builder.WriteString(fmt.Sprintf("---- Player %d ----\n", s.activeActor))
+	builder.WriteString(fmt.Sprintf("---- Player %d ----\n", actorId))
 
-	builder.WriteString(fmt.Sprintf("%d current score\n", calculateScore(s, s.activeActor)))
+	builder.WriteString(fmt.Sprintf("%d current score\n", calculateScore(s, actorId)))
 	builder.WriteString("--------\n")
 
-	for i, num := range s.actorData[s.activeActor].vegetableNum {
+	for i, num := range s.actorData[actorId].vegetableNum {
 		builder.WriteString(fmt.Sprintf("%d %v\n", num, VegType(i)))
 	}
 
 	builder.WriteString("---- point cards ----\n")
 
-	for i, card := range s.actorData[s.activeActor].pointPile {
+	for i, card := range s.actorData[actorId].pointPile {
 		builder.WriteString(fmt.Sprintf("%d: %s\n", i, getCriteriaString(s, card.vegType, card.id)))
 	}
 	return builder.String()
 }
 
-func flipCardsFromPiles(s *GameState) {
+func flipCardsFromPiles(m *Market) {
 	for y := range s.piles {
 		for x := range 2 {
 			market_pos := y + x*playPilesNum
@@ -688,6 +511,15 @@ func flipCardsFromPiles(s *GameState) {
 			}
 		}
 	}
+}
+
+func getMarketWidth(m *Market) int {
+	return len(m.piles)
+}
+
+func getMarketHeight(m *Market) int {
+	assert(m.cardSpots % len(m.piles) == 0)
+	return m.cardSpots / len(m.piles)
 }
 
 
