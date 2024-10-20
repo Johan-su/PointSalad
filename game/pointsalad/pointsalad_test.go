@@ -229,10 +229,10 @@ func CorrectVegetableAmount(t *testing.T, actorNum int, expectedNumOfVegetablePe
 
 	vegetableNums := [vegetableTypeNum]int{}
 
-	for i1, pile := range s.piles {
+	for i1, pile := range s.market.piles {
 		for j1, card := range pile {
 			vegetableNums[int(card.vegType)] += 1
-			for i2, other_pile := range s.piles {
+			for i2, other_pile := range s.market.piles {
 				for j2, other_card := range other_pile {
 					if i1 == i2 && j1 == j2 {
 						continue
@@ -278,11 +278,11 @@ func TestCreate3DrawPiles(t *testing.T) {
 		t.Fatalf("Failed to create GameState")
 	}
 	pileAmount := 3
-	if len(s.piles) != pileAmount {
+	if len(s.market.piles) != pileAmount {
 		t.Errorf("Expected the amount of draw piles to be %d\n", pileAmount)
 	}
-	pileLen := len(s.piles[0])
-	for i, pile := range s.piles {
+	pileLen := len(s.market.piles[0])
+	for i, pile := range s.market.piles {
 		if len(pile) != pileLen {
 			t.Errorf("Expected equal pile length %d but got %d for id %d\n", pileLen, len(pile), i)
 		}
@@ -298,25 +298,25 @@ func TestCardFlipping(t *testing.T) {
 		t.Fatalf("Failed to create GameState")
 	}
 
-	for _, cardspot := range s.market {
+	for _, cardspot := range s.market.cardSpots {
 		if cardspot.hasCard {
 			t.Errorf("Market has cards before flipping cards\n")
 		}
 	}  
 	
 	top2 := [3][2]Card{}
-	for i, pile := range s.piles {
+	for i, pile := range s.market.piles {
 		top2[i][0] = pile[len(pile) - 1]
 		top2[i][1] = pile[len(pile) - 2]
 	}
-	flipCardsFromPiles(&s)
+	flipCardsFromPiles(&s.market)
 
 	for x := range 3 {
 		for y := range 2 {
-			if !s.market[x + 3 * y].hasCard {
+			if !s.market.cardSpots[x + 3 * y].hasCard {
 				t.Errorf("Expected card in market after flipping\n")
 			}
-			marketCard := s.market[x + 3 * y].card 
+			marketCard := s.market.cardSpots[x + 3 * y].card 
 			top2Card := top2[x][y] 
 			if marketCard != top2Card  {
 				t.Errorf("expected card %v but got %v\n", top2Card, marketCard)
@@ -405,7 +405,7 @@ func TestShowHandToOtherPlayers(t *testing.T) {
 
 func TestSwitchingDrawPile(t *testing.T) {
 	initJson()
-	s, err := createGameState(&jsonCards, 0, 2, 0)
+	_, err := createGameState(&jsonCards, 0, 2, 0)
 	if err != nil {
 		t.Fatalf("Failed to create GameState")
 	}

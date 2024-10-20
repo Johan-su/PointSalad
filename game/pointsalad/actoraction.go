@@ -23,6 +23,8 @@ type ActorAction struct {
 }
 
 func getMarketActionFromBot(s *GameState) ActorAction {
+	marketWidth := getMarketWidth(&s.market) 
+	marketHeight := getMarketHeight(&s.market)
 	var action ActorAction
 	for {
 		action = ActorAction{}
@@ -30,12 +32,12 @@ func getMarketActionFromBot(s *GameState) ActorAction {
 			action.kind = PICK_VEG_FROM_MARKET
 			action.amount = rand.Intn(2) + 1
 			for i := range action.amount {
-				action.ids[i] = rand.Intn(len(s.market))
+				action.ids[i] = rand.Intn(marketWidth * marketHeight)
 			}
 		} else {
 			action.kind = PICK_POINT_FROM_MARKET
 			action.amount = 1
-			action.ids[0] = rand.Intn(len(s.piles))
+			action.ids[0] = rand.Intn(marketWidth)
 		}
 		err := IsActionLegal(s, action)
 		if err == nil {
@@ -135,6 +137,8 @@ func parseSwapActionFromPlayer(s *GameState, input []byte) (ActorAction, error) 
 }
 
 func IsActionLegal(s *GameState, action ActorAction) error {
+	marketWidth := getMarketWidth(&s.market)
+	marketSize := marketWidth * getMarketHeight(&s.market)
 	switch action.kind {
 	case INVALID:
 		return fmt.Errorf("Invalid action kind")
@@ -144,10 +148,10 @@ func IsActionLegal(s *GameState, action ActorAction) error {
 				return fmt.Errorf("Amount of actions outside of range: %d", action.amount)
 			}
 			for i := range action.amount {
-				if action.ids[i] < 0 || action.ids[i] >= len(s.market) {
+				if action.ids[i] < 0 || action.ids[i] >= marketSize {
 					return fmt.Errorf("Cannot take card outside of market range")
 				}
-				if !s.market[action.ids[i]].hasCard {
+				if !s.market.cardSpots[action.ids[i]].hasCard {
 					return fmt.Errorf("Cannot take card from empty market spot")
 				}
 			}
@@ -157,10 +161,10 @@ func IsActionLegal(s *GameState, action ActorAction) error {
 			if action.amount != 1 {
 				return fmt.Errorf("Amount of actions outside of range: %d", action.amount)
 			}
-			if action.ids[0] < 0 || action.ids[0] >= len(s.piles) {
+			if action.ids[0] < 0 || action.ids[0] >= marketWidth {
 				return fmt.Errorf("Cannot take card outside of pile range")
 			}
-			if len(s.piles[action.ids[0]]) == 0 {
+			if len(s.market.piles[action.ids[0]]) == 0 {
 				return fmt.Errorf("Cannot take card from empty pile")
 			}
 		}
@@ -188,15 +192,15 @@ func doAction(s *GameState, action ActorAction) {
 	case PICK_VEG_FROM_MARKET:
 		{
 			for i := range action.amount {
-				card := s.market[action.ids[i]].card
+				card := s.market.cardSpots[action.ids[i]].card
 				s.actorData[s.activeActor].vegetableNum[card.vegType] += 1
-				s.market[action.ids[i]].hasCard = false
+				s.market.cardSpots[action.ids[i]].hasCard = false
 			}
 		}
 	case PICK_POINT_FROM_MARKET:
 		{
 			for i := range action.amount {
-				card := drawFromTop(s, action.ids[i])
+				card := drawFromTop(&s.market, action.ids[i])
 				s.actorData[s.activeActor].pointPile = append(s.actorData[s.activeActor].pointPile, card)
 			}
 		}

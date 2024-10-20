@@ -68,12 +68,6 @@ type JCards struct {
 	Cards []JCard
 }
 
-type Market struct {
-	// the amount of piles is the width
-	piles  [][]Card
-	// the amount of cardSpots has to be a multiple of the amount of piles
-	cardSpots []CardSpot
-}
 
 // actors are players and bots
 type GameState struct {
@@ -129,7 +123,7 @@ func (state *GameState) RunHost(in map[int]chan []byte, out map[int]chan []byte)
 		assert(v != nil)
 	}
 	for {
-		flipCardsFromPiles(state)
+		flipCardsFromPiles(&state.market)
 		is_bot := in[state.activeActor] == nil
 		
 		// get decisions from actor
@@ -255,8 +249,8 @@ func expectResponse(data []byte) bool {
 
 func hasWon(state *GameState) bool {
 	// winner if all piles are empty
-	for i := range state.piles {
-		if len(state.piles[i]) != 0 {
+	for i := range state.market.piles {
+		if len(state.market.piles[i]) != 0 {
 			return false
 		}
 	}
@@ -355,14 +349,8 @@ func createGameState(jsonCards *JCards, playerNum int, botNum int, seed int64) (
 	})
 
 
-	pile_size := len(deck) / playPilesNum
-	pile_size_remainder := len(deck) % playPilesNum
-	assert(pile_size_remainder == 0)
+	s.market = createMarket(playPilesNum, 2, deck)
 
-	for i := range playPilesNum {
-		s.piles = append(s.piles, []Card{})
-		s.piles[i] = deck[i*pile_size : (i+1)*pile_size]
-	}
 
 	for range actorNum {
 		s.actorData = append(s.actorData, ActorData{})
@@ -385,10 +373,10 @@ func deepCloneGameState(s *GameState) GameState {
 		new.criteriaTable = append(new.criteriaTable, s.criteriaTable[i])
 	}
 
-	for i := range s.piles {
-		new.piles = append(new.piles, []Card{})
-		for j := range s.piles[i] {
-			new.piles[i] = append(new.piles[i], s.piles[i][j])
+	for i := range s.market.piles {
+		new.market.piles = append(new.market.piles, []Card{})
+		for j := range s.market.piles[i] {
+			new.market.piles[i] = append(new.market.piles[i], s.market.piles[i][j])
 		}
 	}
 	new.market = s.market
@@ -424,14 +412,14 @@ func getCriteriaString(s *GameState, veg_type VegType, id int) string {
 func getMarketString(s *GameState) string {
 	builder := strings.Builder{}
 	builder.WriteString("---- MARKET ----\n")
-	for i, cardspot := range s.market {
+	for i, cardspot := range s.market.cardSpots {
 		if cardspot.hasCard {
 			card := cardspot.card
 			builder.WriteString(fmt.Sprintf("[%c] %v\n", i+'A', card.vegType))
 		}
 	}
 	builder.WriteString("piles:\n")
-	for i, pile := range s.piles {
+	for i, pile := range s.market.piles {
 		if len(pile) > 0 {
 			top_card := pile[len(pile)-1]
 			builder.WriteString(fmt.Sprintf("[%d] %s\n", i, getCriteriaString(s, top_card.vegType, top_card.id)))
@@ -442,33 +430,20 @@ func getMarketString(s *GameState) string {
 	return builder.String()
 }
 
-func drawFromTop(s *GameState, pile_index int) Card {
-	assert(len(s.piles[pile_index]) > 0)
-	c := s.piles[pile_index][len(s.piles[pile_index])-1]
-	s.piles[pile_index] = s.piles[pile_index][0 : len(s.piles[pile_index])-1]
+func drawFromTop(m *Market, pile_index int) Card {
+	assert(len(m.piles[pile_index]) > 0)
+	c := m.piles[pile_index][len(m.piles[pile_index])-1]
+	m.piles[pile_index] = m.piles[pile_index][0 : len(m.piles[pile_index])-1]
 	return c
 }
 
-func drawFromBot(s *GameState, pile_index int) Card {
-	assert(len(s.piles[pile_index]) > 0)
-	c := s.piles[pile_index][0]
-	s.piles[pile_index] = s.piles[pile_index][1:len(s.piles[pile_index])]
+func drawFromBot(m *Market, pile_index int) Card {
+	assert(len(m.piles[pile_index]) > 0)
+	c := m.piles[pile_index][0]
+	m.piles[pile_index] = m.piles[pile_index][1:len(m.piles[pile_index])]
 	return c
 }
 
-func getMaxPileIndex(s *GameState) int {
-	max := 0
-	index := -1
-
-	for i, p := range s.piles {
-		if len(p) > max {
-			max = len(p)
-			index = i
-		}
-	}
-
-	return index
-}
 
 func getActorCardsString(s *GameState, actorId int) string {
 	assert(actorId < len(s.actorData))
@@ -490,37 +465,6 @@ func getActorCardsString(s *GameState, actorId int) string {
 	return builder.String()
 }
 
-func flipCardsFromPiles(m *Market) {
-	for y := range s.piles {
-		for x := range 2 {
-			market_pos := y + x*playPilesNum
-			if !s.market[market_pos].hasCard {
-				if len(s.piles[y]) > 0 {
-					s.market[market_pos].card = drawFromTop(s, y)
-					s.market[market_pos].hasCard = true
-
-				} else {
-					index := getMaxPileIndex(s)
-					// all piles are empty
-					if index == -1 {
-						return
-					}
-					s.market[market_pos].card = drawFromBot(s, index)
-					s.market[market_pos].hasCard = true
-				}
-			}
-		}
-	}
-}
-
-func getMarketWidth(m *Market) int {
-	return len(m.piles)
-}
-
-func getMarketHeight(m *Market) int {
-	assert(m.cardSpots % len(m.piles) == 0)
-	return m.cardSpots / len(m.piles)
-}
 
 
 func pickCardToChangeToVeg(s *GameState, in chan []byte, out chan []byte) {
@@ -590,13 +534,13 @@ func getActionString(s *GameState, action ActorAction) string {
 	case PICK_VEG_FROM_MARKET:
 		{
 			for i := range action.amount {
-				builder.WriteString(fmt.Sprintf("Player %d drew %v from market\n", s.activeActor, s.market[action.ids[i]].card.vegType.String()))
+				builder.WriteString(fmt.Sprintf("Player %d drew %v from market\n", s.activeActor, s.market.cardSpots[action.ids[i]].card.vegType.String()))
 			}
 		}
 	case PICK_POINT_FROM_MARKET:
 		{
 			for i := range action.amount {
-				pile := s.piles[action.ids[i]]
+				pile := s.market.piles[action.ids[i]]
 				card := pile[len(pile)-1]
 				criteria := getCriteriaString(s, card.vegType, card.id)
 				builder.WriteString(fmt.Sprintf("Player %d drew %v from market\n", s.activeActor, criteria))
