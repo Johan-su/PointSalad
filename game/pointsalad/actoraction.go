@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"strconv"
+	"strings"
 )
 
 type ActorActionType int
@@ -22,6 +23,18 @@ type ActorAction struct {
 	ids    [2]int
 }
 
+// getMarketActionFromBot generates a random market action for a bot player. The bot either chooses 
+// to pick vegetables or point cards from the market. It performs this action only if the action is legal
+// and results in an equal or better score compared to the current game state. It ensures that the action 
+// chosen is beneficial by simulating the effect of the action before finalizing it.
+//
+// Parameters:
+//   - s: The current game state (GameState) to evaluate the action on.
+//
+// Returns:
+//   - An ActorAction representing the bot's decision on the market (either picking vegetables or point cards).
+//
+// This function ensures that the bot chooses an action that is legal and maximizes or maintains the bot's score.
 func getMarketActionFromBot(s *GameState) ActorAction {
 	marketWidth := getMarketWidth(&s.market)
 	marketHeight := getMarketHeight(&s.market)
@@ -39,7 +52,7 @@ func getMarketActionFromBot(s *GameState) ActorAction {
 			action.amount = 1
 			action.ids[0] = rand.Intn(marketWidth)
 		}
-		err := IsActionLegal(s, action)
+		err := isActionLegal(s, action)
 		if err == nil {
 			beforeScore := calculateScore(s, s.activeActor)
 
@@ -56,10 +69,22 @@ func getMarketActionFromBot(s *GameState) ActorAction {
 			}
 		}
 	}
-	assert(IsActionLegal(s, action) == nil)
+	assert(isActionLegal(s, action) == nil)
 	return action
 }
 
+// getSwapActionFromBot generates a random swap action for a bot player. The bot chooses to swap one or 
+// two point cards from their point pile with vegetables from the market. The action is only accepted 
+// if it is legal and results in a score that is equal to or greater than the previous score. 
+// The bot makes sure the chosen swap is beneficial by simulating the result first.
+//
+// Parameters:
+//   - s: The current game state (GameState) to evaluate the swap action on.
+//
+// Returns:
+//   - An ActorAction representing the bot's decision to swap point cards for vegetables.
+//
+// This function ensures the bot chooses a swap action that is legal and maximizes or maintains the bot's score.
 func getSwapActionFromBot(s *GameState) ActorAction {
 	assert(len(s.actorData[s.activeActor].pointPile) > 0)
 
@@ -73,7 +98,7 @@ func getSwapActionFromBot(s *GameState) ActorAction {
 			action.ids[i] = rand.Intn(n)
 		}
 
-		err := IsActionLegal(s, action)
+		err := isActionLegal(s, action)
 		if err == nil {
 			beforeScore := calculateScore(s, s.activeActor)
 
@@ -95,6 +120,23 @@ func isWithinAtoF(a byte) bool {
 	return a >= 'A' && a <= 'F'
 }
 
+// parseMarketActionFromPlayer parses a player's input for a market action. The input specifies
+// the player's choice of picking point cards or vegetables from the market. The function interprets
+// the input based on the format and returns an ActorAction representing the player's decision.
+// If the input is invalid or the action is illegal, an error is returned.
+//
+// Parameters:
+//   - s: The current game state (GameState).
+//   - input: A slice of bytes representing the player's input.
+//
+// Returns:
+//   - ActorAction: The action generated based on the player's input.
+//   - error: An error if the input is invalid or the action is not legal.
+//
+// The input can be:
+//   - A single digit ('0'-'9') to pick a point card from the market.
+//   - A single letter ('A'-'F') to pick a vegetable from the market.
+//   - Two letters ('A'-'F') to pick two vegetables from the market.
 func parseMarketActionFromPlayer(s *GameState, input []byte) (ActorAction, error) {
 	action := ActorAction{}
 
@@ -113,13 +155,28 @@ func parseMarketActionFromPlayer(s *GameState, input []byte) (ActorAction, error
 	} else {
 		return action, fmt.Errorf("Invalid input")
 	}
-	err := IsActionLegal(s, action)
+	err := isActionLegal(s, action)
 	if err != nil {
 		return action, err
 	}
 	return action, nil
 }
 
+// parseSwapActionFromPlayer parses a player's input for a swap action. The player can either 
+// choose to skip the swap ('n') or specify an index to swap a point card with a vegetable from the market.
+// If the input is invalid or the swap is not legal, an error is returned.
+//
+// Parameters:
+//   - s: The current game state (GameState).
+//   - input: A slice of bytes representing the player's input.
+//
+// Returns:
+//   - ActorAction: The action generated based on the player's input (either no swap or a specific swap).
+//   - error: An error if the input is invalid or the swap is not legal.
+//
+// The input can be:
+//   - 'n' to indicate no swap.
+//   - A number to indicate the index of the point card the player wants to swap.
 func parseSwapActionFromPlayer(s *GameState, input []byte) (ActorAction, error) {
 	action := ActorAction{}
 
@@ -132,14 +189,25 @@ func parseSwapActionFromPlayer(s *GameState, input []byte) (ActorAction, error) 
 		}
 		action = ActorAction{kind: PICK_TO_SWAP, amount: 1, ids: [2]int{index, 0}}
 	}
-	err := IsActionLegal(s, action)
+	err := isActionLegal(s, action)
 	if err != nil {
 		return action, err
 	}
 	return action, nil
 }
 
-func IsActionLegal(s *GameState, action ActorAction) error {
+// isActionLegal validates whether the provided action is legal within the current game state.
+// It checks that the action's parameters (e.g., amount, ids) are within valid ranges and that the action
+// can be performed given the current state of the market and the player's resources.
+// If any part of the action is illegal, an error is returned. Otherwise, the action is deemed legal.
+//
+// Parameters:
+//   - s: The current game state (GameState).
+//   - action: The action to be validated (ActorAction).
+//
+// Returns:
+//   - error: Returns an error if the action is illegal; otherwise, returns nil if the action is legal.
+func isActionLegal(s *GameState, action ActorAction) error {
 	marketWidth := getMarketWidth(&s.market)
 	marketSize := marketWidth * getMarketHeight(&s.market)
 	switch action.kind {
@@ -196,8 +264,17 @@ func IsActionLegal(s *GameState, action ActorAction) error {
 	return nil
 }
 
+// doAction performs the specified action on the current game state. It mutates the game state based on
+// the kind of action (e.g., picking vegetables, picking point cards, or swapping). The action must be validated
+// before this function is called (i.e., `isActionLegal` must return nil).
+//
+// Parameters:
+//   - s: The current game state (GameState).
+//   - action: The action to be performed (ActorAction).
+//
+// This function does not return any value. It modifies the game state directly based on the action kind.
 func doAction(s *GameState, action ActorAction) {
-	assert(IsActionLegal(s, action) == nil)
+	assert(isActionLegal(s, action) == nil)
 	switch action.kind {
 	case INVALID:
 		panic("unreachable")
@@ -230,4 +307,43 @@ func doAction(s *GameState, action ActorAction) {
 			}
 		}
 	}
+}
+
+func getActionString(s *GameState, action ActorAction) string {
+	assert(isActionLegal(s, action) == nil)
+	builder := strings.Builder{}
+
+	builder.WriteString("---- Action ----\n")
+	switch action.kind {
+	case INVALID:
+		panic("unreachable")
+	case PICK_VEG_FROM_MARKET:
+		{
+			for i := range action.amount {
+				builder.WriteString(fmt.Sprintf("Player %d drew %v from market\n", s.activeActor, getCardFromMarket(&s.market, action.ids[i]).vegType.String()))
+			}
+		}
+	case PICK_POINT_FROM_MARKET:
+		{
+			for i := range action.amount {
+				pile := s.market.piles[action.ids[i]]
+				card := pile[len(pile)-1]
+				criteria := card.criteria.String()
+				builder.WriteString(fmt.Sprintf("Player %d drew %v from market\n", s.activeActor, criteria))
+			}
+		}
+	case PICK_TO_SWAP:
+		{
+			if action.amount == 0 {
+				builder.WriteString(fmt.Sprintf("Player %d did not swap any card\n", s.activeActor))
+			} else {
+				for i := range action.amount {
+					card := s.actorData[s.activeActor].pointPile[action.ids[i]]
+					criteria := card.criteria.String()
+					builder.WriteString(fmt.Sprintf("Player %d swapped %v to %v\n", s.activeActor, criteria, card.vegType))
+				}
+			}
+		}
+	}
+	return builder.String()
 }

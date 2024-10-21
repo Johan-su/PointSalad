@@ -9,7 +9,6 @@ import (
 	"math/rand"
 	"os"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -59,6 +58,26 @@ type GameState struct {
 	botNum      int
 }
 
+// Init initializes the game state for a new game with the specified number of players and bots.
+//
+// This function sets up the initial game state by:
+// 1. Verifying that the total number of players (human + bot) is between 2 and 6.
+// 2. Loading the game configuration and card data from the "pointsaladManifest.json" file.
+// 3. Creating a new game state based on the provided number of players and bots, and using the current time as a seed for randomization.
+//
+// Parameters:
+//   - playerNum: The number of human players in the game.
+//   - botNum: The number of bots in the game. The total number of players and bots must be between 2 and 6 (inclusive).
+//
+// Side effects:
+//   - The function modifies the `GameState` object (`state`) to reflect the initialized game state with players, bots, and cards.
+//
+// Returns:
+//   - None. In case of an error (e.g., invalid number of players/bots or failure to read the game manifest), the function will log the error and terminate the program.
+//
+// Example usage:
+//   - To start a new game with 2 human players and 1 bot:
+//     state.Init(2, 1)
 func (state *GameState) Init(playerNum int, botNum int) {
 	actorNum := playerNum + botNum
 
@@ -89,6 +108,30 @@ func (state *GameState) Init(playerNum int, botNum int) {
 	}
 }
 
+// RunHost runs the main game loop for the host, managing the game flow for both players and bots.
+//
+// This function orchestrates the core gameplay loop for the host by doing the following:
+// 1. **Market Actions**: Alternates between getting actions from either human players or bots. It provides game information to players (or gets automated actions from bots), and processes their market decisions (e.g., choosing vegetables or point cards).
+// 2. **Action Execution**: After getting the market action from the active player, the action is broadcast to all players, and the state is updated accordingly.
+// 3. **Swap Phase**: If the active player has point cards, it enters a swap phase where players/bots can choose to flip a point card into a vegetable card. The process is similar to the market action, where players can either make a decision or let the bot automatically choose.
+// 4. **Hand Sharing**: After each action, the host broadcasts the current state of the active player's hand to all other players. This ensures that each player is aware of others' progress.
+// 5. **Game End and Winner Announcement**: The game checks if a player has won, and if so, the host broadcasts the final scores and ends the game.
+// 6. **Actor Switching**: After every turn, the host moves to the next active player, cycling through all players and bots, until a winner is found.
+//
+// Parameters:
+//   - in: A map where the keys are actor IDs (player/bot), and the values are channels from which the host can receive input (commands) from the respective actors.
+//   - out: A map where the keys are actor IDs, and the values are channels to which the host can send output (game state information) to the respective actors.
+//
+// Side effects:
+//   - This function modifies the state of the game as actions are taken by players or bots, and broadcasts game state updates to all participants.
+//   - The game ends when a player wins, and the final scores are broadcast to all players/bots.
+//
+// Returns:
+//   - None. The game loop will continue until a winner is found or a player exits (e.g., by sending 'Q' to quit).
+//
+// Example usage:
+//   - To start the host game loop with two human players and one bot:
+//     state.RunHost(playerInputChannels, botInputChannels)
 func (state *GameState) RunHost(in map[int]chan []byte, out map[int]chan []byte) {
 	var err error
 	for _, v := range in {
@@ -167,18 +210,65 @@ func (state *GameState) RunHost(in map[int]chan []byte, out map[int]chan []byte)
 	}
 }
 
+// RunPlayer starts the player game loop for human players, reading and writing data from/to the player's input and output channels.
+//
+// This function serves as an entry point for running a player in the game. It uses `runPlayerWithReader` to handle player interaction with the game through standard input and output channels.
+//
+// Parameters:
+//   - in: A channel from which the function receives game data to present to the player.
+//   - out: A channel to which the function sends player input back to the game (e.g., decisions or actions).
+//
+// Side effects:
+//   - This function expects the player to provide inputs via standard input. Once the player inputs data, it sends the response back to the game through the `out` channel.
+//
+// Returns:
+//   - None. The function loops indefinitely until the player quits (by sending a "quit" command).
 func (_ *GameState) RunPlayer(in chan []byte, out chan []byte) {
 	runPlayerWithReader(in, out, bufio.NewReader(os.Stdin))
 }
 
+// GetMaxHostDataSize returns the maximum size (in bytes) that the server (host) can receive from clients.
+//
+// This function is used to define the maximum allowed size of incoming data packets for the server, which helps prevent overloads or malicious data injections.
+//
+// Parameters:
+//   - None
+//
+// Returns:
+//   - An integer representing the maximum size of data packets the host can handle.
 func (_ *GameState) GetMaxHostDataSize() int {
 	return serverByteReceiveSize
 }
 
+// GetMaxPlayerDataSize returns the maximum size (in bytes) that the player can send to the server (host).
+//
+// This function is used to define the maximum size of outgoing data packets from a player to the host, helping to ensure that data sent by the player doesn't exceed acceptable limits.
+//
+// Parameters:
+//   - None
+//
+// Returns:
+//   - An integer representing the maximum size of data packets a player can send.
 func (_ *GameState) GetMaxPlayerDataSize() int {
 	return serverByteSendSize
 }
 
+// runPlayerWithReader handles player interaction with the game using a specified input reader (e.g., stdin).
+// It reads input from the player, processes it, and sends back the response through the output channel.
+//
+// This function continuously listens for incoming game data (in the form of byte slices) and responds with player input. It uses a scanner to read lines of text input from the player. The function expects certain prompts to trigger player responses (such as "pick"), and it terminates when the player provides input that matches the quit condition (e.g., sending an empty byte slice).
+//
+// Parameters:
+//   - in: A channel from which the function receives game data to present to the player (e.g., prompts or information).
+//   - out: A channel to which the function sends player input back to the game (e.g., decisions or actions).
+//   - r: An `io.Reader` used for reading player input (typically `os.Stdin` for human players).
+//
+// Side effects:
+//   - The function expects the player to provide responses via standard input. Once the player inputs data, it is sent back to the game through the `out` channel.
+//   - The function ends when the player gets a signal to quit
+//
+// Returns:
+//   - None.
 func runPlayerWithReader(in chan []byte, out chan []byte, r io.Reader) {
 	assert(in != nil)
 	assert(out != nil)
@@ -268,6 +358,15 @@ func assert(c bool) {
 	}
 }
 
+// createDeck generates a deck of cards based on the provided JSON card data and the number of cards per vegetable type.
+// It shuffles the card IDs and creates cards using the criteria for each vegetable type. Each card will have an associated vegetable type and its criteria.
+//
+// Parameters:
+//   - jsonCards: A pointer to a `JCards` structure containing the JSON data for the available cards.
+//   - perVegetableNum: The number of cards to generate for each vegetable type.
+//
+// Returns:
+//   - A slice of `Card` structures representing the deck of cards.
 func createDeck(jsonCards *JCards, perVegetableNum int) []Card {
 	var deck []Card
 	var ids []int
@@ -295,6 +394,18 @@ func createDeck(jsonCards *JCards, perVegetableNum int) []Card {
 	return deck
 }
 
+// createGameState initializes a new game state with a shuffled deck and a random seed for actor turns.
+// It creates the game market, assigns actors (players and bots), and sets up the initial conditions for the game based on the provided parameters.
+//
+// Parameters:
+//   - jsonCards: A pointer to a `JCards` structure containing the JSON data for the cards.
+//   - playerNum: The number of players in the game.
+//   - botNum: The number of bots in the game.
+//   - seed: A seed for the random number generator, used to ensure consistent randomization across game sessions.
+//
+// Returns:
+//   - A `GameState` structure representing the initialized game state.
+//   - An error if the number of players + bots is out of the expected range (between 2 and 6).
 func createGameState(jsonCards *JCards, playerNum int, botNum int, seed int64) (GameState, error) {
 	actorNum := playerNum + botNum
 	if !(actorNum >= 2 && actorNum <= 6) {
@@ -321,6 +432,14 @@ func createGameState(jsonCards *JCards, playerNum int, botNum int, seed int64) (
 	return s, nil
 }
 
+// deepCloneGameState creates a deep copy of the provided game state, including all market piles, card spots, and actor data (vegetables and point piles).
+// The cloned game state will be an exact copy of the original, allowing for parallel game simulations or backups.
+//
+// Parameters:
+//   - s: The original `GameState` structure to be cloned.
+//
+// Returns:
+//   - A new `GameState` structure that is a deep clone of the original game state.
 func deepCloneGameState(s *GameState) GameState {
 	new := GameState{}
 
@@ -398,39 +517,6 @@ func getActorCardsString(s *GameState, actorId int) string {
 	return builder.String()
 }
 
-func pickCardToChangeToVeg(s *GameState, in chan []byte, out chan []byte) {
-	for true {
-		if len(s.actorData[s.activeActor].pointPile) == 0 {
-			break
-		}
-		out <- []byte(fmt.Sprintf("pick 0-1 point card to flip to vegetable, type n to pick none example: 5\n"))
-		input := <-in
-
-		if input[0] == 'n' {
-			break
-		}
-
-		index, err := strconv.Atoi(string(input))
-		if err != nil {
-			continue
-		}
-
-		if index >= 0 && index < len(s.actorData[s.activeActor].pointPile) {
-
-			card := s.actorData[s.activeActor].pointPile[index]
-
-			s.actorData[s.activeActor].vegetableNum[int(card.vegType)] += 1
-
-			// shift slice
-			for i := index; i < len(s.actorData[s.activeActor].pointPile)-1; i += 1 {
-				s.actorData[s.activeActor].pointPile[i] = s.actorData[s.activeActor].pointPile[i+1]
-			}
-			// remove last element
-			s.actorData[s.activeActor].pointPile = s.actorData[s.activeActor].pointPile[0 : len(s.actorData[s.activeActor].pointPile)-1]
-			break
-		}
-	}
-}
 
 func calculateScore(s *GameState, actorId int) int {
 	score := 0
@@ -440,44 +526,4 @@ func calculateScore(s *GameState, actorId int) int {
 	}
 
 	return score
-}
-
-// should be called before doAction
-func getActionString(s *GameState, action ActorAction) string {
-	assert(IsActionLegal(s, action) == nil)
-	builder := strings.Builder{}
-
-	builder.WriteString("---- Action ----\n")
-	switch action.kind {
-	case INVALID:
-		panic("unreachable")
-	case PICK_VEG_FROM_MARKET:
-		{
-			for i := range action.amount {
-				builder.WriteString(fmt.Sprintf("Player %d drew %v from market\n", s.activeActor, getCardFromMarket(&s.market, action.ids[i]).vegType.String()))
-			}
-		}
-	case PICK_POINT_FROM_MARKET:
-		{
-			for i := range action.amount {
-				pile := s.market.piles[action.ids[i]]
-				card := pile[len(pile)-1]
-				criteria := card.criteria.String()
-				builder.WriteString(fmt.Sprintf("Player %d drew %v from market\n", s.activeActor, criteria))
-			}
-		}
-	case PICK_TO_SWAP:
-		{
-			if action.amount == 0 {
-				builder.WriteString(fmt.Sprintf("Player %d did not swap any card\n", s.activeActor))
-			} else {
-				for i := range action.amount {
-					card := s.actorData[s.activeActor].pointPile[action.ids[i]]
-					criteria := card.criteria.String()
-					builder.WriteString(fmt.Sprintf("Player %d swapped %v to %v\n", s.activeActor, criteria, card.vegType))
-				}
-			}
-		}
-	}
-	return builder.String()
 }

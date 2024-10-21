@@ -25,6 +25,21 @@ type JCards struct {
 	Cards []JCard
 }
 
+// getJCriteria returns the specific criteria associated with a vegetable type
+// for a given card ID in the provided JCards structure. The function accesses
+// the appropriate vegetable criteria based on the VegType (such as PEPPER, LETTUCE, etc.)
+// and the card ID, then returns the corresponding criteria as a string.
+//
+// Parameters:
+// - jsonCards: A pointer to the JCards structure that contains the card data.
+// - vegType: The type of vegetable (e.g., PEPPER, LETTUCE, etc.) for which criteria is needed.
+// - id: The card ID within the jsonCards structure to retrieve the criteria for.
+//
+// Returns:
+// - string: The criteria associated with the specified vegetable type and card ID.
+//
+// Panics:
+// - The function panics if the vegetable type provided does not match any known type (unreachable case).
 func getJCriteria(jsonCards *JCards, vegType VegType, id int) string {
 	Criteria := jsonCards.Cards[id].Criteria
 	switch vegType {
@@ -54,6 +69,16 @@ type CriteriaMost struct {
 	score   int
 }
 
+// calculateScore calculates the score based on the actor's vegetable count for a specific vegetable type.
+// It checks whether the actor with the given actorId has the highest vegetable count for the specified vegetable type (vegType).
+// If the actor does not have the highest count, the function returns 0. Otherwise, it returns the score associated with this criterion.
+// 
+// Parameters:
+//   - s *GameState: The current state of the game containing actor data and vegetable counts.
+//   - actorId int: The ID of the actor whose score is being calculated.
+//
+// Returns:
+//   - int: The calculated score for the actor.
 func (c *CriteriaMost) calculateScore(s *GameState, actorId int) int {
 	vegType := int(c.vegType)
 
@@ -71,6 +96,11 @@ func (c *CriteriaMost) calculateScore(s *GameState, actorId int) int {
 	return c.score
 }
 
+// String returns a string representation of the CriteriaMost object, indicating the vegetable type and the associated score.
+// The format is: "MOST <vegetable type> = <score>"
+//
+// Returns:
+//   - string: The string representation of the criteria.
 func (c *CriteriaMost) String() string {
 	return fmt.Sprintf("MOST %v = %v", c.vegType, c.score)
 }
@@ -80,6 +110,16 @@ type CriteriaFewest struct {
 	score   int
 }
 
+// calculateScore calculates the score based on the actor's vegetable count for a specific vegetable type,
+// but this time it checks whether the actor with the given actorId has the fewest vegetable count for the specified vegetable type (vegType).
+// If the actor does not have the fewest count, the function returns 0. Otherwise, it returns the score associated with this criterion.
+//
+// Parameters:
+//   - s *GameState: The current state of the game containing actor data and vegetable counts.
+//   - actorId int: The ID of the actor whose score is being calculated.
+//
+// Returns:
+//   - int: The calculated score for the actor.
 func (c *CriteriaFewest) calculateScore(s *GameState, actorId int) int {
 	vegType := int(c.vegType)
 
@@ -97,6 +137,11 @@ func (c *CriteriaFewest) calculateScore(s *GameState, actorId int) int {
 	return c.score
 }
 
+// String returns a string representation of the CriteriaFewest object, indicating the vegetable type and the associated score.
+// The format is: "FEWEST <vegetable type> = <score>"
+//
+// Returns:
+//   - string: The string representation of the criteria.
 func (c *CriteriaFewest) String() string {
 	return fmt.Sprintf("FEWEST %v = %v", c.vegType, c.score)
 }
@@ -107,6 +152,17 @@ type CriteriaEvenOdd struct {
 	oddScore  int
 }
 
+// calculateScore calculates the score based on the actor's vegetable count for a specific vegetable type,
+// determining the score based on whether the count is even or odd.
+// If the vegetable count for the specified type (vegType) is even, the function returns the evenScore;
+// otherwise, it returns the oddScore.
+//
+// Parameters:
+//   - s *GameState: The current state of the game containing actor data and vegetable counts.
+//   - actorId int: The ID of the actor whose score is being calculated.
+//
+// Returns:
+//   - int: The calculated score based on whether the vegetable count is even or odd.
 func (c *CriteriaEvenOdd) calculateScore(s *GameState, actorId int) int {
 	if s.actorData[actorId].vegetableNum[c.vegType]%2 == 0 {
 		return c.evenScore
@@ -115,6 +171,12 @@ func (c *CriteriaEvenOdd) calculateScore(s *GameState, actorId int) int {
 	}
 }
 
+// String returns a string representation of the CriteriaEvenOdd object,
+// showing the vegetable type and the associated even and odd scores.
+//
+// Returns:
+//   - string: The string representation of the criteria in the format:
+//     "<vegetable type>: EVEN=<evenScore>, ODD=<oddScore>"
 func (c *CriteriaEvenOdd) String() string {
 	return fmt.Sprintf("%v: EVEN=%v, ODD=%v", c.vegType, c.evenScore, c.oddScore)
 }
@@ -123,6 +185,15 @@ type CriteriaPer struct {
 	perScores [vegetableTypeNum]int
 }
 
+// calculateScore calculates the total score for an actor based on the vegetable quantities and their associated per-vegetable scores.
+// For each vegetable type, the actor's vegetable count is multiplied by the corresponding per-value from perScores, and the results are summed to get the total score.
+//
+// Parameters:
+//   - s *GameState: The current state of the game containing actor data and vegetable counts.
+//   - actorId int: The ID of the actor whose score is being calculated.
+//
+// Returns:
+//   - int: The calculated score for the actor, based on the perScores for each vegetable type.
 func (c *CriteriaPer) calculateScore(s *GameState, actorId int) int {
 	score := 0
 	for j, per_value := range c.perScores {
@@ -131,6 +202,12 @@ func (c *CriteriaPer) calculateScore(s *GameState, actorId int) int {
 	return score
 }
 
+// String returns a string representation of the CriteriaPer object, showing the vegetable types and their associated per-scores.
+// The format is: "<vegetable type> / <score>" for each vegetable type where the score is non-zero. The result is a comma-separated list.
+//
+// Returns:
+//   - string: The string representation of the criteria in the format:
+//     "<vegetable type> / <score>, ..."
 func (c *CriteriaPer) String() string {
 	builder := strings.Builder{}
 
@@ -153,6 +230,17 @@ type CriteriaSum struct {
 	score    int
 }
 
+// calculateScore calculates the score for an actor based on the vegetable counts and their associated "vegCount" values.
+// For each vegetable type, it checks how many times the actor has that vegetable type divided by the required count (from vegCount).
+// The minimum value across all valid (non-zero) vegetable counts is taken, and the score is multiplied by this minimum value.
+// If no valid vegetable types are found, the score is 0.
+//
+// Parameters:
+//   - s *GameState: The current state of the game containing actor data and vegetable counts.
+//   - actorId int: The ID of the actor whose score is being calculated.
+//
+// Returns:
+//   - int: The calculated score for the actor, which is the minimum of the non-repeated vegetable counts, multiplied by the given score.
 func (c *CriteriaSum) calculateScore(s *GameState, actorId int) int {
 	min := math.MaxInt32
 	for j, count := range c.vegCount {
@@ -170,6 +258,13 @@ func (c *CriteriaSum) calculateScore(s *GameState, actorId int) int {
 	return min * c.score
 }
 
+// String returns a string representation of the CriteriaSum object, showing the vegetable types used in the calculation
+// and the associated score. The format is: "<vegetable type> + <vegetable type> = <score>", where the vegetable types
+// are listed based on the vegCount array.
+//
+// Returns:
+//   - string: The string representation of the criteria in the format:
+//     "<vegetable type> + <vegetable type>, ... = <score>"
 func (c *CriteriaSum) String() string {
 	builder := strings.Builder{}
 
@@ -180,7 +275,7 @@ func (c *CriteriaSum) String() string {
 				builder.WriteString(fmt.Sprintf("%v", VegType(i)))
 				first = false
 			} else {
-				builder.WriteString(fmt.Sprintf("+ %v", VegType(i)))
+				builder.WriteString(fmt.Sprintf(" + %v", VegType(i)))
 			}
 		}
 	}
@@ -192,6 +287,18 @@ type CriteriaMostTotal struct {
 	score int
 }
 
+// calculateScore calculates the score for an actor based on their total number of vegetables compared to all other actors.
+// The actor's total vegetable count is compared to the total vegetable count of each other actor. If any other actor has
+// an equal or greater vegetable count, the score is set to 0. If the actor has more vegetables than all other actors, the
+// score is returned.
+//
+// Parameters:
+//   - s *GameState: The current state of the game containing actor data and vegetable counts.
+//   - actorId int: The ID of the actor whose score is being calculated.
+//
+// Returns:
+//   - int: The calculated score for the actor, which is 0 if any other actor has an equal or greater total vegetable count,
+//     otherwise it returns the score associated with this criterion.
 func (c *CriteriaMostTotal) calculateScore(s *GameState, actorId int) int {
 	vegCount := 0
 	for _, count := range s.actorData[actorId].vegetableNum {
@@ -210,6 +317,12 @@ func (c *CriteriaMostTotal) calculateScore(s *GameState, actorId int) int {
 	return c.score
 }
 
+// String returns a string representation of the CriteriaMostTotal object, indicating that the criterion is based on the
+// actor having the most total vegetables. The format is: "MOST TOTAL VEGETABLE = <score>"
+//
+// Returns:
+//   - string: The string representation of the criteria in the format:
+//     "MOST TOTAL VEGETABLE = <score>"
 func (c *CriteriaMostTotal) String() string {
 	return fmt.Sprintf("MOST TOTAL VEGETABLE = %v", c.score)
 }
@@ -218,6 +331,18 @@ type CriteriaFewestTotal struct {
 	score int
 }
 
+// calculateScore calculates the score for an actor based on their total number of vegetables compared to all other actors.
+// The actor's total vegetable count is compared to the total vegetable count of each other actor. If any other actor has
+// an equal or fewer total vegetable count, the score is set to 0. If the actor has the fewest vegetables compared to all
+// other actors, the score is returned.
+//
+// Parameters:
+//   - s *GameState: The current state of the game containing actor data and vegetable counts.
+//   - actorId int: The ID of the actor whose score is being calculated.
+//
+// Returns:
+//   - int: The calculated score for the actor, which is 0 if any other actor has an equal or fewer total vegetable count,
+//     otherwise it returns the score associated with this criterion.
 func (c *CriteriaFewestTotal) calculateScore(s *GameState, actorId int) int {
 	vegCount := 0
 	for _, count := range s.actorData[actorId].vegetableNum {
@@ -236,6 +361,12 @@ func (c *CriteriaFewestTotal) calculateScore(s *GameState, actorId int) int {
 	return c.score
 }
 
+// String returns a string representation of the CriteriaFewestTotal object, indicating that the criterion is based on the
+// actor having the fewest total vegetables. The format is: "FEWEST TOTAL VEGETABLE = <score>"
+//
+// Returns:
+//   - string: The string representation of the criteria in the format:
+//     "FEWEST TOTAL VEGETABLE = <score>"
 func (c *CriteriaFewestTotal) String() string {
 	return fmt.Sprintf("FEWEST TOTAL VEGETABLE = %v", c.score)
 }
@@ -245,6 +376,17 @@ type CriteriaPerTypeGreaterThanEq struct {
 	score         int
 }
 
+// calculateScore calculates the score for an actor based on the number of vegetables they have for each vegetable type.
+// If the actor's count for a vegetable type is greater than or equal to the specified threshold (greaterThanEq),
+// the score is increased by the given score value (c.score) for each such vegetable type.
+//
+// Parameters:
+//   - s *GameState: The current state of the game containing actor data and vegetable counts.
+//   - actorId int: The ID of the actor whose score is being calculated.
+//
+// Returns:
+//   - int: The calculated score, which is the sum of the score values for each vegetable type where the actor's count
+//     is greater than or equal to the threshold (c.greaterThanEq).
 func (c *CriteriaPerTypeGreaterThanEq) calculateScore(s *GameState, actorId int) int {
 	score := 0
 	for _, count := range s.actorData[actorId].vegetableNum {
@@ -255,6 +397,12 @@ func (c *CriteriaPerTypeGreaterThanEq) calculateScore(s *GameState, actorId int)
 	return score
 }
 
+// String returns a string representation of the CriteriaPerTypeGreaterThanEq object, indicating the threshold for each
+// vegetable type and the associated score. The format is: "<vegetable type> / VEGETABLE TYPE >=<threshold>"
+// 
+// Returns:
+//   - string: The string representation of the criteria in the format:
+//     "<vegetable type> / VEGETABLE TYPE >=<threshold>"
 func (c *CriteriaPerTypeGreaterThanEq) String() string {
 	return fmt.Sprintf("%v / VEGETABLE TYPE >=%v", c.greaterThanEq, c.score)
 }
@@ -263,6 +411,16 @@ type CriteriaPerMissingType struct {
 	score int
 }
 
+// calculateScore calculates the score for an actor based on the number of vegetable types they are missing (i.e., vegetable count is 0).
+// For each vegetable type, if the actor's count is 0 (indicating they are missing that vegetable type), the score is increased
+// by the specified score value (c.score) for each missing vegetable type.
+//
+// Parameters:
+//   - s *GameState: The current state of the game containing actor data and vegetable counts.
+//   - actorId int: The ID of the actor whose score is being calculated.
+//
+// Returns:
+//   - int: The calculated score, which is the sum of the score values for each vegetable type the actor is missing (count == 0).
 func (c *CriteriaPerMissingType) calculateScore(s *GameState, actorId int) int {
 	score := 0
 	for _, count := range s.actorData[actorId].vegetableNum {
@@ -273,6 +431,12 @@ func (c *CriteriaPerMissingType) calculateScore(s *GameState, actorId int) int {
 	return score
 }
 
+// String returns a string representation of the CriteriaPerMissingType object, indicating the associated score for each missing vegetable type.
+// The format is: "<score> / MISSING VEGETABLE TYPE"
+//
+// Returns:
+//   - string: The string representation of the criteria in the format:
+//     "<score> / MISSING VEGETABLE TYPE"
 func (c *CriteriaPerMissingType) String() string {
 	return fmt.Sprintf("%v / MISSING VEGETABLE TYPE", c.score)
 }
@@ -281,6 +445,17 @@ type CriteriaCompleteSet struct {
 	score int
 }
 
+// calculateScore calculates the score for an actor based on the minimum vegetable count across all vegetable types they have.
+// The actor must have a complete set of vegetables, and the score is determined by multiplying the minimum count of any vegetable type
+// by the given score value (c.score). If the actor has a low count in one type, that number limits the total score.
+//
+// Parameters:
+//   - s *GameState: The current state of the game containing actor data and vegetable counts.
+//   - actorId int: The ID of the actor whose score is being calculated.
+//
+// Returns:
+//   - int: The calculated score, which is the product of the score value and the minimum vegetable count the actor has
+//     for any vegetable type. If the actor has fewer of any vegetable type, that count limits the score.
 func (c *CriteriaCompleteSet) calculateScore(s *GameState, actorId int) int {
 	min := s.actorData[actorId].vegetableNum[0]
 	for _, count := range s.actorData[actorId].vegetableNum {
@@ -291,6 +466,12 @@ func (c *CriteriaCompleteSet) calculateScore(s *GameState, actorId int) int {
 	return c.score * min
 }
 
+// String returns a string representation of the CriteriaCompleteSet object, indicating that the criterion is based on having
+// a complete set of vegetables, with the associated score. The format is: "COMPLETE SET = <score>"
+//
+// Returns:
+//   - string: The string representation of the criteria in the format:
+//     "COMPLETE SET = <score>"
 func (c *CriteriaCompleteSet) String() string {
 	return fmt.Sprintf("COMPLETE SET = %v", c.score)
 }
@@ -423,6 +604,23 @@ func getVegetableType(s string) VegType {
 	return -1
 }
 
+// parseCriteria parses a string representing a criteria into a Criteria object.
+// The function takes a string `s` and tokenizes it into a series of tokens using a lexer. It then identifies the specific criteria
+// based on keywords and patterns found in the string and constructs the corresponding Criteria object, which can be of various types
+// such as CriteriaMost, CriteriaFewest, CriteriaCompleteSet, CriteriaPer, etc. The function handles different formats of criteria,
+// including operations on vegetable types, and supports complex expressions like "MOST TOTAL VEGETABLE" or "MOST / VEGETABLE TYPE >= N".
+//
+// Parameters:
+//   - s string: The string representing the criteria to be parsed.
+//
+// Returns:
+//   - Criteria: A Criteria object representing the parsed criteria. This can be of types such as CriteriaMost, CriteriaFewest,
+//     CriteriaCompleteSet, CriteriaPer, etc.
+//   - error: An error if the parsing fails, such as invalid syntax, unexpected tokens, or unsupported formats.
+//
+// Example usage:
+//   - "MOST TOTAL VEGETABLE = 5" will return a CriteriaMostTotal object with score 5.
+//   - "FEWEST / VEGETABLE TYPE >= 2" will return a CriteriaPerTypeGreaterThanEq object with greaterThanEq set to 2 and score 5.
 func parseCriteria(s string) (Criteria, error) {
 
 	lex := Lexer{}
@@ -688,48 +886,4 @@ func parseCriteria(s string) (Criteria, error) {
 		}
 	}
 	panic("unreachable")
-}
-
-func createCriteriaTable(json_cards *JCards) ([]Criteria, error) {
-
-	criteria_table := []Criteria{}
-
-	for _, jcard := range json_cards.Cards {
-		criteria_PEPPER, err := parseCriteria(jcard.Criteria.PEPPER)
-		if err != nil {
-			return criteria_table, err
-		}
-		criteria_table = append(criteria_table, criteria_PEPPER)
-
-		criteria_LETTUCE, err := parseCriteria(jcard.Criteria.LETTUCE)
-		if err != nil {
-			return criteria_table, err
-		}
-		criteria_table = append(criteria_table, criteria_LETTUCE)
-
-		criteria_CARROT, err := parseCriteria(jcard.Criteria.CARROT)
-		if err != nil {
-			return criteria_table, err
-		}
-		criteria_table = append(criteria_table, criteria_CARROT)
-
-		criteria_CABBAGE, err := parseCriteria(jcard.Criteria.CABBAGE)
-		if err != nil {
-			return criteria_table, err
-		}
-		criteria_table = append(criteria_table, criteria_CABBAGE)
-
-		criteria_ONION, err := parseCriteria(jcard.Criteria.ONION)
-		if err != nil {
-			return criteria_table, err
-		}
-		criteria_table = append(criteria_table, criteria_ONION)
-
-		criteria_TOMATO, err := parseCriteria(jcard.Criteria.TOMATO)
-		if err != nil {
-			return criteria_table, err
-		}
-		criteria_table = append(criteria_table, criteria_TOMATO)
-	}
-	return criteria_table, nil
 }

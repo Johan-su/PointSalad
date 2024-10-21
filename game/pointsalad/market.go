@@ -26,7 +26,6 @@ type Market struct {
 //   - `piles`: A slice of piles, each containing an equal number of cards from the deck.
 //   - `cardSpots`: A slice representing a grid of card spots with size `width * height`.
 //
-// If the number of cards in the deck isn't evenly divisible by the number of piles or if the number of card spots isn't divisible by the number of piles, the function will log an error and terminate.
 
 func createMarket(width int, height int, deck []Card) Market {
 	m := Market{}
