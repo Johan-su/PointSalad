@@ -320,7 +320,7 @@ func getActionString(s *GameState, action ActorAction) string {
 	case pickVegFromMarket:
 		{
 			for i := range action.amount {
-				builder.WriteString(fmt.Sprintf("Player %d drew %v from market\n", s.activeActor, getCardFromMarket(&s.market, action.ids[i]).vegType.String()))
+				builder.WriteString(fmt.Sprintf("Player %d drew %v from market\n", s.activeActor, getCardFromMarket(&s.market, action.ids[i]).vegType))
 			}
 		}
 	case pickPointFromMarket:
@@ -329,7 +329,7 @@ func getActionString(s *GameState, action ActorAction) string {
 				pile := s.market.piles[action.ids[i]]
 				card := pile[len(pile)-1]
 				criteria := card.criteria.String()
-				builder.WriteString(fmt.Sprintf("Player %d drew %v from market\n", s.activeActor, criteria))
+				builder.WriteString(fmt.Sprintf("Player %d drew %v (%v) from market\n", s.activeActor, criteria, card.vegType))
 			}
 		}
 	case pickToSwap:

@@ -203,11 +203,11 @@ func (c *CriteriaPer) calculateScore(s *GameState, actorId int) int {
 }
 
 // String returns a string representation of the CriteriaPer object, showing the vegetable types and their associated per-scores.
-// The format is: "<vegetable type> / <score>" for each vegetable type where the score is non-zero. The result is a comma-separated list.
+// The format is: "<score> / <vegetable type>" for each vegetable type where the score is non-zero. The result is a comma-separated list.
 //
 // Returns:
 //   - string: The string representation of the criteria in the format:
-//     "<vegetable type> / <score>, ..."
+//     "<score> / <vegetable type>, ..."
 func (c *CriteriaPer) String() string {
 	builder := strings.Builder{}
 
@@ -215,10 +215,10 @@ func (c *CriteriaPer) String() string {
 	for i, score := range c.perScores {
 		if score != 0 {
 			if first {
-				builder.WriteString(fmt.Sprintf("%v / %v", VegType(i), score))
+				builder.WriteString(fmt.Sprintf("%v / %v", score, VegType(i)))
 				first = false
 			} else {
-				builder.WriteString(fmt.Sprintf(", %v / %v", VegType(i), score))
+				builder.WriteString(fmt.Sprintf(", %v / %v", score, VegType(i)))
 			}
 		}
 	}
