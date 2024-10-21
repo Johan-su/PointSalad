@@ -5,8 +5,8 @@ import (
 	"log"
 	"os"
 	"reflect"
-	"testing"
 	"strings"
+	"testing"
 )
 
 var inited bool = false
@@ -160,8 +160,6 @@ func TestCriteriaParsing(t *testing.T) {
 	}
 }
 
-
-
 // ---- Requirement 1 ----
 func correctPlayerAmount(t *testing.T, expected bool, playerNum int, botNum int) {
 	_, err := createGameState(&jsonCards, playerNum, botNum, 0)
@@ -206,7 +204,6 @@ func TestPlayerAmount(t *testing.T) {
 
 // ---- Requirement 2 ----
 
-
 func TestCardAmount(t *testing.T) {
 	initJson()
 
@@ -216,8 +213,6 @@ func TestCardAmount(t *testing.T) {
 		t.Errorf("expected %v got %v\n", expected, cardCount)
 	}
 }
-
-
 
 // ---- Requirement 3 ----
 
@@ -302,24 +297,24 @@ func TestCardFlipping(t *testing.T) {
 		if hasCard(&s.market, i) {
 			t.Errorf("Market has cards before flipping cards\n")
 		}
-	}  
-	
+	}
+
 	top2 := [3][2]Card{}
 	for i, pile := range s.market.piles {
-		top2[i][0] = pile[len(pile) - 1]
-		top2[i][1] = pile[len(pile) - 2]
+		top2[i][0] = pile[len(pile)-1]
+		top2[i][1] = pile[len(pile)-2]
 	}
 	flipCardsFromPiles(&s.market)
 
 	for x := range 3 {
 		for y := range 2 {
-			if !hasCard(&s.market, x + 3 * y) {
+			if !hasCard(&s.market, x+3*y) {
 				t.Errorf("Expected card in market after flipping\n")
 			}
 
-			marketCard := getCardFromMarket(&s.market, x + 3 * y) 
-			top2Card := top2[x][y] 
-			if marketCard != top2Card  {
+			marketCard := getCardFromMarket(&s.market, x+3*y)
+			top2Card := top2[x][y]
+			if marketCard != top2Card {
 				t.Errorf("expected card %v but got %v\n", top2Card, marketCard)
 			}
 		}
@@ -335,7 +330,7 @@ func TestRandomStartingPlayer(t *testing.T) {
 
 	testAmount := 10000
 
-	for i := range testAmount  {
+	for i := range testAmount {
 		s, err := createGameState(&jsonCards, 0, 6, int64(i))
 		if err != nil {
 			t.Fatalf("Failed to create GameState")
@@ -344,9 +339,9 @@ func TestRandomStartingPlayer(t *testing.T) {
 	}
 
 	for i, amount := range startingPlayerIdsAmount {
-		val := float32(amount) / float32(testAmount) 
+		val := float32(amount) / float32(testAmount)
 		if !(val > 0.16 && val < 0.17) {
-			t.Errorf("player amounts are not uniformly distributed expected approx %f got %f for player %d", 1.0 / 6.0, val, i)
+			t.Errorf("player amounts are not uniformly distributed expected approx %f got %f for player %d", 1.0/6.0, val, i)
 		}
 	}
 }
@@ -364,15 +359,13 @@ func TestPlayerOptions(t *testing.T) {
 		host.activeActor = 0
 		hostRead := make(map[int]chan []byte)
 		hostWrite := make(map[int]chan []byte)
-	
+
 		hostRead[0] = make(chan []byte)
 		hostWrite[0] = make(chan []byte)
-	
-	
+
 		playerInput := "AB\nQ\n"
 		go runPlayerWithReader(hostWrite[0], hostRead[0], strings.NewReader(playerInput))
-		
-		
+
 		flipCardsFromPiles(&host.market)
 
 		card1 := getCardFromMarket(&host.market, 0)
@@ -399,17 +392,15 @@ func TestPlayerOptions(t *testing.T) {
 		host.activeActor = 0
 		hostRead := make(map[int]chan []byte)
 		hostWrite := make(map[int]chan []byte)
-	
+
 		hostRead[0] = make(chan []byte)
 		hostWrite[0] = make(chan []byte)
-	
-	
+
 		playerInput := "0\n0\nQ\n"
 		go runPlayerWithReader(hostWrite[0], hostRead[0], strings.NewReader(playerInput))
-	
 
 		p := host.market.piles[0]
-		card1 := p[len(p) - 3]
+		card1 := p[len(p)-3]
 
 		host.RunHost(hostRead, hostWrite)
 
@@ -418,7 +409,6 @@ func TestPlayerOptions(t *testing.T) {
 		}
 	}
 }
-
 
 // ---- Requirement 9 ----
 func TestShowHandToOtherPlayers(t *testing.T) {
@@ -430,28 +420,27 @@ func TestShowHandToOtherPlayers(t *testing.T) {
 		t.Fatalf("Failed to create GameState")
 	}
 	host.activeActor = 0
-	
+
 	hostRead := make(map[int]chan []byte)
 	hostWrite := make(map[int]chan []byte)
 
-
-	// create clients to check for hand string	
+	// create clients to check for hand string
 	for i := range playerAmount {
 		clientRead := make(chan []byte)
 		clientWrite := make(chan []byte)
 		hostRead[i] = clientWrite
-		hostWrite[i] = clientRead  
+		hostWrite[i] = clientRead
 		if i != 0 {
 			// dummyClient read
 			go func() {
-				
+
 				// action
-				<- clientRead
+				<-clientRead
 				// action cards
-				in := string(<- clientRead)
+				in := string(<-clientRead)
 				// player's turn
-				<- clientRead
-				<- clientRead
+				<-clientRead
+				<-clientRead
 				expected := getActorCardsString(&host, 0)
 				if in != expected {
 					t.Errorf("expected %v got %v for client %d\n", expected, in, i)
@@ -463,7 +452,7 @@ func TestShowHandToOtherPlayers(t *testing.T) {
 
 	player0Input := "AB\n"
 	go runPlayerWithReader(hostWrite[0], hostRead[0], strings.NewReader(player0Input))
-	
+
 	host.RunHost(hostRead, hostWrite)
 }
 
@@ -478,24 +467,22 @@ func TestCardReplace(t *testing.T) {
 
 	p := s.market.piles[0]
 	assert(len(p) >= 2)
-	cardsBefore1 := p[len(p) - 1]
-	cardsBefore2 := p[len(p) - 2]
+	cardsBefore1 := p[len(p)-1]
+	cardsBefore2 := p[len(p)-2]
 	lenBefore := len(p)
 
-
 	flipCardsFromPiles(&s.market)
-	
+
 	lenAfter := len(p)
 
 	cardMarket1 := getCardFromMarket(&s.market, 0)
 	cardMarket2 := getCardFromMarket(&s.market, getMarketWidth(&s.market))
 
-
 	if lenBefore != lenAfter {
-		t.Errorf("expected %v length got %v\n", lenBefore - 2, lenAfter)
+		t.Errorf("expected %v length got %v\n", lenBefore-2, lenAfter)
 	}
 
-	if cardMarket1 != cardsBefore1  {
+	if cardMarket1 != cardsBefore1 {
 		t.Errorf("expected card to be equal to card in market\n")
 	}
 
@@ -511,28 +498,28 @@ func TestSwitchingDrawPile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create GameState")
 	}
-	
+
 	s.market.piles[0] = s.market.piles[0][:1]
 	s.market.piles[2] = s.market.piles[2][:1]
 
 	p0 := s.market.piles[0]
 	p1 := s.market.piles[1]
-	p2 := s.market.piles[2] 
+	p2 := s.market.piles[2]
 
 	expected := [6]Card{}
 
-	expected[0] = p0[len(p0) - 1]
+	expected[0] = p0[len(p0)-1]
 	expected[3] = p1[0]
 
-	expected[1] = p1[len(p1) - 1]
-	expected[4] = p1[len(p1) - 2]
+	expected[1] = p1[len(p1)-1]
+	expected[4] = p1[len(p1)-2]
 
-	expected[2] = p2[len(p2) - 1]
+	expected[2] = p2[len(p2)-1]
 	expected[5] = p1[1]
 
 	flipCardsFromPiles(&s.market)
 
-	for i, expectedCard :=  range expected {
+	for i, expectedCard := range expected {
 		marketCard := getCardFromMarket(&s.market, i)
 		if expectedCard != marketCard {
 			t.Errorf("expected %v got %v\n", expectedCard, marketCard)
@@ -548,16 +535,15 @@ func TestWinWhenEmpty(t *testing.T) {
 		t.Fatalf("Failed to create GameState")
 	}
 
-	
 	hostWrite := make(map[int]chan []byte)
 	hostWrite[0] = make(chan []byte)
-	
+
 	success := make(chan bool)
-	
+
 	go func() {
 		won := false
 		for {
-			in := <- hostWrite[0]
+			in := <-hostWrite[0]
 			if len(in) == 0 {
 				break
 			}
@@ -568,11 +554,9 @@ func TestWinWhenEmpty(t *testing.T) {
 		}
 		success <- won
 	}()
-	
-	
+
 	hostRead := make(map[int]chan []byte)
 	s.RunHost(hostRead, hostWrite)
-
 
 	for i, pile := range s.market.piles {
 		if len(pile) != 0 {
@@ -580,13 +564,11 @@ func TestWinWhenEmpty(t *testing.T) {
 		}
 	}
 
-	hasWon := <- success
+	hasWon := <-success
 	if !hasWon {
 		t.Errorf("expected a winner after game is over")
 	}
 }
-
-
 
 // ---- Requirement 13 ----
 
@@ -603,7 +585,7 @@ func CorrectCalculateScore(t *testing.T, expected_score int, vegetableNum [veget
 		}
 		card := Card{
 			criteria: c,
-			vegType: VegType(-1),
+			vegType:  VegType(-1),
 		}
 		s.actorData[0].pointPile = append(s.actorData[0].pointPile, card)
 	}

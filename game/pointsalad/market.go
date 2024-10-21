@@ -1,6 +1,5 @@
 package pointsalad
 
-
 type CardSpot struct {
 	hasCard bool
 	card    Card
@@ -8,7 +7,7 @@ type CardSpot struct {
 
 type Market struct {
 	// the amount of piles is the width
-	piles  [][]Card
+	piles [][]Card
 	// the amount of cardSpots has to be a multiple of the amount of piles
 	cardSpots []CardSpot
 }
@@ -31,7 +30,7 @@ type Market struct {
 
 func createMarket(width int, height int, deck []Card) Market {
 	m := Market{}
-	
+
 	pileSize := len(deck) / playPilesNum
 	pileSizeRemainder := len(deck) % playPilesNum
 	assert(pileSizeRemainder == 0)
@@ -41,19 +40,19 @@ func createMarket(width int, height int, deck []Card) Market {
 		m.piles[i] = deck[i*pileSize : (i+1)*pileSize]
 	}
 
-	m.cardSpots = make([]CardSpot, width * height)
-	assert(len(m.cardSpots) % len(m.piles) == 0)
+	m.cardSpots = make([]CardSpot, width*height)
+	assert(len(m.cardSpots)%len(m.piles) == 0)
 	return m
 }
 
 // getMaxPileIndex returns the index of the pile with the largest number of elements in the Market's piles.
 // If the Market has no piles (i.e., an empty slice), it returns -1.
-// 
+//
 // Parameters:
 // - m: A pointer to the Market object that contains the piles (a slice of piles).
 //
 // Returns:
-// - An integer representing the index of the pile with the maximum size. 
+// - An integer representing the index of the pile with the maximum size.
 //   If the Market is empty, it returns -1.
 
 func getMaxPileIndex(m *Market) int {
@@ -72,7 +71,7 @@ func getMaxPileIndex(m *Market) int {
 
 // flipCardsFromPiles iterates through the market grid and places cards onto the market
 // spots from the piles. It checks if the market position already has a card, and if not,
-// it draws cards either from the specified pile or from the bottom of the pile with the 
+// it draws cards either from the specified pile or from the bottom of the pile with the
 // most cards. If all piles are empty, the function returns early.
 //
 // Parameters:
@@ -148,7 +147,6 @@ func drawFromBot(m *Market, pile_index int) Card {
 func hasCard(m *Market, id int) bool {
 	return m.cardSpots[id].hasCard
 }
-
 
 func getCardFromMarket(m *Market, id int) Card {
 	assert(hasCard(m, id))

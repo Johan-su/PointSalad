@@ -4,13 +4,13 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
 	"os"
 	"slices"
 	"strconv"
 	"strings"
-	"io"
 	"time"
 )
 
@@ -31,21 +31,20 @@ const (
 
 const (
 	playPilesNum          = 3
-	marketColumns = 2
+	marketColumns         = 2
 	serverByteReceiveSize = 4
 	serverByteSendSize    = 1024
 )
 
 type Card struct {
 	criteria Criteria
-	vegType VegType
+	vegType  VegType
 }
 
 type ActorData struct {
 	vegetableNum [vegetableTypeNum]int
 	pointPile    []Card
 }
-
 
 // actors are players and bots
 
@@ -80,7 +79,7 @@ func (state *GameState) Init(playerNum int, botNum int) {
 	}
 
 	{
-		seed := time.Now().Unix() 
+		seed := time.Now().Unix()
 		game_state, err := createGameState(&jsonCards, playerNum, botNum, seed)
 		if err != nil {
 			log.Fatalf("ERROR: Failed to create game state: %s\n", err)
@@ -101,7 +100,7 @@ func (state *GameState) RunHost(in map[int]chan []byte, out map[int]chan []byte)
 	for {
 		flipCardsFromPiles(&state.market)
 		is_bot := in[state.activeActor] == nil
-		
+
 		// get decisions from actor
 		var market_action ActorAction
 		if is_bot {
@@ -109,7 +108,7 @@ func (state *GameState) RunHost(in map[int]chan []byte, out map[int]chan []byte)
 		} else {
 			s := getActorCardsString(state, state.activeActor) + getMarketString(state)
 			out[state.activeActor] <- []byte(s)
-			for {		
+			for {
 				out[state.activeActor] <- []byte("pick 1 or 2 vegetables example: AB or\npick 1 point card example: 0\n")
 				input := <-in[state.activeActor]
 				if len(input) == 0 || (len(input) == 1 && input[0] == 'Q') {
@@ -132,7 +131,7 @@ func (state *GameState) RunHost(in map[int]chan []byte, out map[int]chan []byte)
 				swap_action = getSwapActionFromBot(state)
 			} else {
 				out[state.activeActor] <- []byte(getActorCardsString(state, state.activeActor))
-				for {		
+				for {
 					out[state.activeActor] <- []byte(fmt.Sprintf("pick 0-1 point card to flip to vegetable, type n to pick none example: 5\n"))
 					input := <-in[state.activeActor]
 					if len(input) == 0 || (len(input) == 1 && input[0] == 'Q') {
@@ -180,7 +179,6 @@ func (_ *GameState) GetMaxPlayerDataSize() int {
 	return serverByteSendSize
 }
 
-
 func runPlayerWithReader(in chan []byte, out chan []byte, r io.Reader) {
 	assert(in != nil)
 	assert(out != nil)
@@ -213,7 +211,6 @@ func runPlayerWithReader(in chan []byte, out chan []byte, r io.Reader) {
 		}
 	}
 }
-
 
 func expectQuit(data []byte) bool {
 	return len(data) == 0
@@ -271,7 +268,6 @@ func assert(c bool) {
 	}
 }
 
-
 func createDeck(jsonCards *JCards, perVegetableNum int) []Card {
 	var deck []Card
 	var ids []int
@@ -289,8 +285,8 @@ func createDeck(jsonCards *JCards, perVegetableNum int) []Card {
 				log.Fatalf("ERROR: while creating deck: %v\n", err)
 			}
 			card := Card{
-				criteria: criteria, 
-				vegType: VegType(i),
+				criteria: criteria,
+				vegType:  VegType(i),
 			}
 			deck = append(deck, card)
 
@@ -308,16 +304,12 @@ func createGameState(jsonCards *JCards, playerNum int, botNum int, seed int64) (
 
 	s := GameState{}
 
-
-	
-	deck := createDeck(jsonCards, 3 * actorNum)
+	deck := createDeck(jsonCards, 3*actorNum)
 	rand.Shuffle(len(deck), func(i int, j int) {
 		deck[i], deck[j] = deck[j], deck[i]
 	})
 
-
 	s.market = createMarket(playPilesNum, marketColumns, deck)
-
 
 	for range actorNum {
 		s.actorData = append(s.actorData, ActorData{})
@@ -342,7 +334,6 @@ func deepCloneGameState(s *GameState) GameState {
 	for i := range s.market.cardSpots {
 		new.market.cardSpots = append(new.market.cardSpots, s.market.cardSpots[i])
 	}
-
 
 	for i := range s.actorData {
 		new.actorData = append(new.actorData, ActorData{})
@@ -440,7 +431,6 @@ func pickCardToChangeToVeg(s *GameState, in chan []byte, out chan []byte) {
 		}
 	}
 }
-
 
 func calculateScore(s *GameState, actorId int) int {
 	score := 0

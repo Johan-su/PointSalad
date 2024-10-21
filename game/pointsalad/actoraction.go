@@ -1,8 +1,8 @@
 package pointsalad
 
 import (
-	"math/rand"
 	"fmt"
+	"math/rand"
 	"strconv"
 )
 
@@ -13,7 +13,7 @@ const (
 	PICK_VEG_FROM_MARKET   ActorActionType = iota
 	PICK_POINT_FROM_MARKET ActorActionType = iota
 	PICK_TO_SWAP           ActorActionType = iota
-	QUIT ActorActionType = iota
+	QUIT                   ActorActionType = iota
 )
 
 type ActorAction struct {
@@ -23,7 +23,7 @@ type ActorAction struct {
 }
 
 func getMarketActionFromBot(s *GameState) ActorAction {
-	marketWidth := getMarketWidth(&s.market) 
+	marketWidth := getMarketWidth(&s.market)
 	marketHeight := getMarketHeight(&s.market)
 	var action ActorAction
 	for {
@@ -44,7 +44,6 @@ func getMarketActionFromBot(s *GameState) ActorAction {
 			beforeScore := calculateScore(s, s.activeActor)
 
 			new_s := deepCloneGameState(s)
-
 
 			assert(fmt.Sprintf("%v", new_s) == fmt.Sprintf("%v", *s))
 			doAction(&new_s, action)
@@ -129,7 +128,7 @@ func parseSwapActionFromPlayer(s *GameState, input []byte) (ActorAction, error) 
 	} else {
 		index, err := strconv.Atoi(string(input))
 		if err != nil {
-			return action, fmt.Errorf("Expected a number or 'n'\n") 
+			return action, fmt.Errorf("Expected a number or 'n'\n")
 		}
 		action = ActorAction{kind: PICK_TO_SWAP, amount: 1, ids: [2]int{index, 0}}
 	}
@@ -232,4 +231,3 @@ func doAction(s *GameState, action ActorAction) {
 		}
 	}
 }
-

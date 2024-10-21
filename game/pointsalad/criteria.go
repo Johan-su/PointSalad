@@ -28,12 +28,18 @@ type JCards struct {
 func getJCriteria(jsonCards *JCards, vegType VegType, id int) string {
 	Criteria := jsonCards.Cards[id].Criteria
 	switch vegType {
-	case PEPPER: return Criteria.PEPPER
-	case LETTUCE: return Criteria.LETTUCE
-	case CARROT: return Criteria.CARROT
-	case CABBAGE: return Criteria.CABBAGE
-	case ONION: return Criteria.ONION
-	case TOMATO: return Criteria.TOMATO
+	case PEPPER:
+		return Criteria.PEPPER
+	case LETTUCE:
+		return Criteria.LETTUCE
+	case CARROT:
+		return Criteria.CARROT
+	case CABBAGE:
+		return Criteria.CABBAGE
+	case ONION:
+		return Criteria.ONION
+	case TOMATO:
+		return Criteria.TOMATO
 	}
 	panic("unreachable")
 }
@@ -113,9 +119,6 @@ func (c *CriteriaEvenOdd) String() string {
 	return fmt.Sprintf("%v: EVEN=%v, ODD=%v", c.vegType, c.evenScore, c.oddScore)
 }
 
-
-
-
 type CriteriaPer struct {
 	perScores [vegetableTypeNum]int
 }
@@ -144,9 +147,6 @@ func (c *CriteriaPer) String() string {
 	}
 	return builder.String()
 }
-
-
-
 
 type CriteriaSum struct {
 	vegCount [vegetableTypeNum]int
@@ -188,8 +188,6 @@ func (c *CriteriaSum) String() string {
 	return builder.String()
 }
 
-
-
 type CriteriaMostTotal struct {
 	score int
 }
@@ -215,7 +213,6 @@ func (c *CriteriaMostTotal) calculateScore(s *GameState, actorId int) int {
 func (c *CriteriaMostTotal) String() string {
 	return fmt.Sprintf("MOST TOTAL VEGETABLE = %v", c.score)
 }
-
 
 type CriteriaFewestTotal struct {
 	score int
@@ -243,8 +240,6 @@ func (c *CriteriaFewestTotal) String() string {
 	return fmt.Sprintf("FEWEST TOTAL VEGETABLE = %v", c.score)
 }
 
-
-
 type CriteriaPerTypeGreaterThanEq struct {
 	greaterThanEq int
 	score         int
@@ -264,10 +259,6 @@ func (c *CriteriaPerTypeGreaterThanEq) String() string {
 	return fmt.Sprintf("%v / VEGETABLE TYPE >=%v", c.greaterThanEq, c.score)
 }
 
-
-
-
-
 type CriteriaPerMissingType struct {
 	score int
 }
@@ -282,11 +273,9 @@ func (c *CriteriaPerMissingType) calculateScore(s *GameState, actorId int) int {
 	return score
 }
 
-
 func (c *CriteriaPerMissingType) String() string {
 	return fmt.Sprintf("%v / MISSING VEGETABLE TYPE", c.score)
 }
-
 
 type CriteriaCompleteSet struct {
 	score int
@@ -305,8 +294,6 @@ func (c *CriteriaCompleteSet) calculateScore(s *GameState, actorId int) int {
 func (c *CriteriaCompleteSet) String() string {
 	return fmt.Sprintf("COMPLETE SET = %v", c.score)
 }
-
-
 
 type TokenType int
 
