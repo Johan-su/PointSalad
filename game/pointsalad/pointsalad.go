@@ -31,6 +31,7 @@ const (
 
 const (
 	playPilesNum          = 3
+	marketColumns = 2
 	serverByteReceiveSize = 4
 	serverByteSendSize    = 1024
 )
@@ -271,24 +272,12 @@ func assert(c bool) {
 }
 
 
-func createGameState(jsonCards *JCards, playerNum int, botNum int, seed int64) (GameState, error) {
-	actorNum := playerNum + botNum
-	if !(actorNum >= 2 && actorNum <= 6) {
-		return GameState{}, fmt.Errorf("Number of players + bots have to be between 2-6")
-	}
-
-	s := GameState{}
-
-	rand.Seed(seed)
-
+func createDeck(jsonCards *JCards, perVegetableNum int) []Card {
+	var deck []Card
 	var ids []int
 	for id, _ := range jsonCards.Cards {
 		ids = append(ids, id)
 	}
-
-	perVegetableNum := actorNum * 3
-	var deck []Card
-
 	for i := range vegetableTypeNum {
 		rand.Shuffle(len(ids), func(i int, j int) {
 			ids[i], ids[j] = ids[j], ids[i]
@@ -307,13 +296,27 @@ func createGameState(jsonCards *JCards, playerNum int, botNum int, seed int64) (
 
 		}
 	}
+	return deck
+}
 
+func createGameState(jsonCards *JCards, playerNum int, botNum int, seed int64) (GameState, error) {
+	actorNum := playerNum + botNum
+	if !(actorNum >= 2 && actorNum <= 6) {
+		return GameState{}, fmt.Errorf("Number of players + bots have to be between 2-6")
+	}
+	rand.Seed(seed)
+
+	s := GameState{}
+
+
+	
+	deck := createDeck(jsonCards, 3 * actorNum)
 	rand.Shuffle(len(deck), func(i int, j int) {
 		deck[i], deck[j] = deck[j], deck[i]
 	})
 
 
-	s.market = createMarket(playPilesNum, 2, deck)
+	s.market = createMarket(playPilesNum, marketColumns, deck)
 
 
 	for range actorNum {
