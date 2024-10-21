@@ -170,7 +170,7 @@ func getMarketString(m *Market) string {
 	for i, pile := range m.piles {
 		if len(pile) > 0 {
 			topCard := pile[len(pile)-1]
-			builder.WriteString(fmt.Sprintf("[%d] %s\n", i, topCard.criteria.String()))
+			builder.WriteString(fmt.Sprintf("[%d] %s (%s)\n", i, topCard.criteria.String(), topCard.vegType))
 		} else {
 			builder.WriteString("\n")
 		}
