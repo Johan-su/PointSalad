@@ -237,8 +237,8 @@ func CorrectVegetableAmount(t *testing.T, actorNum int, expectedNumOfVegetablePe
 					if i1 == i2 && j1 == j2 {
 						continue
 					}
-					if card.id == other_card.id && card.vegType == other_card.vegType {
-						t.Errorf("pile_id1=%d card_id1=%d pile_id2=%d card_id2=%d actorNum=%d %v vegetable with same id %d, ", i1, j1, i2, j2, actorNum, card.vegType, card.id)
+					if card.criteria == other_card.criteria && card.vegType == other_card.vegType {
+						t.Errorf("vegetable with vegType %v, criteria %v", card.vegType, card.criteria.String())
 					}
 				}
 			}
@@ -597,9 +597,13 @@ func CorrectCalculateScore(t *testing.T, expected_score int, vegetableNum [veget
 	}
 	s.actorData[0].vegetableNum = vegetableNum
 	for _, str := range card_strs {
-		card, err := getCardFromStr(&s, str)
+		c, err := parseCriteria(str)
 		if err != nil {
-			t.Fatalf("Failed to get card %s", str)
+			log.Fatalf("Failed to parse criteria %s", str)
+		}
+		card := Card{
+			criteria: c,
+			vegType: VegType(-1),
 		}
 		s.actorData[0].pointPile = append(s.actorData[0].pointPile, card)
 	}

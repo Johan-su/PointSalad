@@ -36,7 +36,7 @@ const (
 )
 
 type Card struct {
-	id      int
+	criteria Criteria
 	vegType VegType
 }
 
@@ -49,9 +49,6 @@ type ActorData struct {
 // actors are players and bots
 
 type GameState struct {
-	strCriterias  []string
-	criteriaTable []Criteria
-
 	// market
 	market Market
 
@@ -273,6 +270,7 @@ func assert(c bool) {
 	}
 }
 
+
 func createGameState(jsonCards *JCards, playerNum int, botNum int, seed int64) (GameState, error) {
 	actorNum := playerNum + botNum
 	if !(actorNum >= 2 && actorNum <= 6) {
@@ -282,22 +280,6 @@ func createGameState(jsonCards *JCards, playerNum int, botNum int, seed int64) (
 	s := GameState{}
 
 	rand.Seed(seed)
-
-	for _, card := range jsonCards.Cards {
-		s.strCriterias = append(s.strCriterias, card.Criteria.PEPPER)
-		s.strCriterias = append(s.strCriterias, card.Criteria.LETTUCE)
-		s.strCriterias = append(s.strCriterias, card.Criteria.CARROT)
-		s.strCriterias = append(s.strCriterias, card.Criteria.CABBAGE)
-		s.strCriterias = append(s.strCriterias, card.Criteria.ONION)
-		s.strCriterias = append(s.strCriterias, card.Criteria.TOMATO)
-	}
-
-	table, err := createCriteriaTable(jsonCards)
-	if err != nil {
-		return GameState{}, err
-	}
-	s.criteriaTable = table
-
 
 	var ids []int
 	for id, _ := range jsonCards.Cards {
@@ -313,8 +295,12 @@ func createGameState(jsonCards *JCards, playerNum int, botNum int, seed int64) (
 		})
 
 		for j := 0; j < perVegetableNum; j += 1 {
+			criteria, err := parseCriteria(getJCriteria(jsonCards, VegType(i), ids[j]))
+			if err != nil {
+				log.Fatalf("ERROR: while creating deck: %v\n", err)
+			}
 			card := Card{
-				id:      ids[j],
+				criteria: criteria, 
 				vegType: VegType(i),
 			}
 			deck = append(deck, card)
@@ -342,14 +328,6 @@ func createGameState(jsonCards *JCards, playerNum int, botNum int, seed int64) (
 
 func deepCloneGameState(s *GameState) GameState {
 	new := GameState{}
-
-	for i := range s.strCriterias {
-		new.strCriterias = append(new.strCriterias, s.strCriterias[i])
-	}
-
-	for i := range s.criteriaTable {
-		new.criteriaTable = append(new.criteriaTable, s.criteriaTable[i])
-	}
 
 	for i := range s.market.piles {
 		new.market.piles = append(new.market.piles, []Card{})
@@ -385,10 +363,6 @@ func broadcastToAll(out map[int]chan []byte, str string) {
 	}
 }
 
-func getCriteriaString(s *GameState, veg_type VegType, id int) string {
-	return s.strCriterias[int(veg_type)+id*vegetableTypeNum]
-}
-
 func getMarketString(s *GameState) string {
 	builder := strings.Builder{}
 	builder.WriteString("---- MARKET ----\n")
@@ -401,8 +375,8 @@ func getMarketString(s *GameState) string {
 	builder.WriteString("piles:\n")
 	for i, pile := range s.market.piles {
 		if len(pile) > 0 {
-			top_card := pile[len(pile)-1]
-			builder.WriteString(fmt.Sprintf("[%d] %s\n", i, getCriteriaString(s, top_card.vegType, top_card.id)))
+			topCard := pile[len(pile)-1]
+			builder.WriteString(fmt.Sprintf("[%d] %s\n", i, topCard.criteria.String()))
 		} else {
 			builder.WriteString("\n")
 		}
@@ -425,7 +399,7 @@ func getActorCardsString(s *GameState, actorId int) string {
 	builder.WriteString("---- point cards ----\n")
 
 	for i, card := range s.actorData[actorId].pointPile {
-		builder.WriteString(fmt.Sprintf("%d: %s\n", i, getCriteriaString(s, card.vegType, card.id)))
+		builder.WriteString(fmt.Sprintf("%d: %s\n", i, card.criteria.String()))
 	}
 	return builder.String()
 }
@@ -464,22 +438,12 @@ func pickCardToChangeToVeg(s *GameState, in chan []byte, out chan []byte) {
 	}
 }
 
-func getCardFromStr(s *GameState, str string) (Card, error) {
-	for i, c_str := range s.strCriterias {
-		if str == c_str {
-			return Card{id: i, vegType: VegType(i % vegetableTypeNum)}, nil
-		}
-	}
-	return Card{}, fmt.Errorf("Failed to find card with criteria %s", str)
-}
 
 func calculateScore(s *GameState, actorId int) int {
 	score := 0
-	for _, point_card := range s.actorData[actorId].pointPile {
+	for _, pointCard := range s.actorData[actorId].pointPile {
 
-		criteria := s.criteriaTable[point_card.id]
-
-		score += criteria.calculateScore(s, actorId)
+		score += pointCard.criteria.calculateScore(s, actorId)
 	}
 
 	return score
@@ -505,7 +469,7 @@ func getActionString(s *GameState, action ActorAction) string {
 			for i := range action.amount {
 				pile := s.market.piles[action.ids[i]]
 				card := pile[len(pile)-1]
-				criteria := getCriteriaString(s, card.vegType, card.id)
+				criteria := card.criteria.String()
 				builder.WriteString(fmt.Sprintf("Player %d drew %v from market\n", s.activeActor, criteria))
 			}
 		}
@@ -516,7 +480,7 @@ func getActionString(s *GameState, action ActorAction) string {
 			} else {
 				for i := range action.amount {
 					card := s.actorData[s.activeActor].pointPile[action.ids[i]]
-					criteria := getCriteriaString(s, card.vegType, card.id)
+					criteria := card.criteria.String()
 					builder.WriteString(fmt.Sprintf("Player %d swapped %v to %v\n", s.activeActor, criteria, card.vegType))
 				}
 			}

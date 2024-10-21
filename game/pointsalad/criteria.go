@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 )
 
 type JCriteria struct {
@@ -24,9 +25,22 @@ type JCards struct {
 	Cards []JCard
 }
 
+func getJCriteria(jsonCards *JCards, vegType VegType, id int) string {
+	Criteria := jsonCards.Cards[id].Criteria
+	switch vegType {
+	case PEPPER: return Criteria.PEPPER
+	case LETTUCE: return Criteria.LETTUCE
+	case CARROT: return Criteria.CARROT
+	case CABBAGE: return Criteria.CABBAGE
+	case ONION: return Criteria.ONION
+	case TOMATO: return Criteria.TOMATO
+	}
+	panic("unreachable")
+}
 
 type Criteria interface {
 	calculateScore(s *GameState, actorId int) int
+	String() string
 }
 
 type CriteriaMost struct {
@@ -95,6 +109,13 @@ func (c *CriteriaEvenOdd) calculateScore(s *GameState, actorId int) int {
 	}
 }
 
+func (c *CriteriaEvenOdd) String() string {
+	return fmt.Sprintf("%v: EVEN=%v, ODD=%v", c.vegType, c.evenScore, c.oddScore)
+}
+
+
+
+
 type CriteriaPer struct {
 	perScores [vegetableTypeNum]int
 }
@@ -106,6 +127,26 @@ func (c *CriteriaPer) calculateScore(s *GameState, actorId int) int {
 	}
 	return score
 }
+
+func (c *CriteriaPer) String() string {
+	builder := strings.Builder{}
+
+	first := true
+	for i, score := range c.perScores {
+		if score != 0 {
+			if first {
+				builder.WriteString(fmt.Sprintf("%v / %v", VegType(i), score))
+				first = false
+			} else {
+				builder.WriteString(fmt.Sprintf(", %v / %v", VegType(i), score))
+			}
+		}
+	}
+	return builder.String()
+}
+
+
+
 
 type CriteriaSum struct {
 	vegCount [vegetableTypeNum]int
@@ -129,6 +170,26 @@ func (c *CriteriaSum) calculateScore(s *GameState, actorId int) int {
 	return min * c.score
 }
 
+func (c *CriteriaSum) String() string {
+	builder := strings.Builder{}
+
+	first := true
+	for i, count := range c.vegCount {
+		for range count {
+			if first {
+				builder.WriteString(fmt.Sprintf("%v", VegType(i)))
+				first = false
+			} else {
+				builder.WriteString(fmt.Sprintf("+ %v", VegType(i)))
+			}
+		}
+	}
+	builder.WriteString(fmt.Sprintf(" = %v", c.score))
+	return builder.String()
+}
+
+
+
 type CriteriaMostTotal struct {
 	score int
 }
@@ -150,6 +211,11 @@ func (c *CriteriaMostTotal) calculateScore(s *GameState, actorId int) int {
 	}
 	return c.score
 }
+
+func (c *CriteriaMostTotal) String() string {
+	return fmt.Sprintf("MOST TOTAL VEGETABLE = %v", c.score)
+}
+
 
 type CriteriaFewestTotal struct {
 	score int
@@ -173,6 +239,12 @@ func (c *CriteriaFewestTotal) calculateScore(s *GameState, actorId int) int {
 	return c.score
 }
 
+func (c *CriteriaFewestTotal) String() string {
+	return fmt.Sprintf("FEWEST TOTAL VEGETABLE = %v", c.score)
+}
+
+
+
 type CriteriaPerTypeGreaterThanEq struct {
 	greaterThanEq int
 	score         int
@@ -188,6 +260,14 @@ func (c *CriteriaPerTypeGreaterThanEq) calculateScore(s *GameState, actorId int)
 	return score
 }
 
+func (c *CriteriaPerTypeGreaterThanEq) String() string {
+	return fmt.Sprintf("%v / VEGETABLE TYPE >=%v", c.greaterThanEq, c.score)
+}
+
+
+
+
+
 type CriteriaPerMissingType struct {
 	score int
 }
@@ -202,6 +282,12 @@ func (c *CriteriaPerMissingType) calculateScore(s *GameState, actorId int) int {
 	return score
 }
 
+
+func (c *CriteriaPerMissingType) String() string {
+	return fmt.Sprintf("%v / MISSING VEGETABLE TYPE", c.score)
+}
+
+
 type CriteriaCompleteSet struct {
 	score int
 }
@@ -215,6 +301,12 @@ func (c *CriteriaCompleteSet) calculateScore(s *GameState, actorId int) int {
 	}
 	return c.score * min
 }
+
+func (c *CriteriaCompleteSet) String() string {
+	return fmt.Sprintf("COMPLETE SET = %v", c.score)
+}
+
+
 
 type TokenType int
 
