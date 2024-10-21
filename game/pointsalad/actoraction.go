@@ -45,7 +45,10 @@ func getMarketActionFromBot(s *GameState) ActorAction {
 
 			new_s := deepCloneGameState(s)
 
+
+			assert(fmt.Sprintf("%v", new_s) == fmt.Sprintf("%v", *s))
 			doAction(&new_s, action)
+			assert(fmt.Sprintf("%v", new_s) != fmt.Sprintf("%v", *s))
 
 			AfterScore := calculateScore(&new_s, new_s.activeActor)
 
@@ -54,6 +57,7 @@ func getMarketActionFromBot(s *GameState) ActorAction {
 			}
 		}
 	}
+	assert(IsActionLegal(s, action) == nil)
 	return action
 }
 
@@ -151,9 +155,19 @@ func IsActionLegal(s *GameState, action ActorAction) error {
 				if action.ids[i] < 0 || action.ids[i] >= marketSize {
 					return fmt.Errorf("Cannot take card outside of market range")
 				}
-				if !s.market.cardSpots[action.ids[i]].hasCard {
+				if !hasCard(&s.market, action.ids[i]) {
 					return fmt.Errorf("Cannot take card from empty market spot")
 				}
+
+				for j := range action.amount {
+					if i == j {
+						continue
+					}
+					if action.ids[i] == action.ids[j] {
+						return fmt.Errorf("Cannot take from the same spot multiple times")
+					}
+				}
+
 			}
 		}
 	case PICK_POINT_FROM_MARKET:
@@ -185,14 +199,13 @@ func IsActionLegal(s *GameState, action ActorAction) error {
 
 func doAction(s *GameState, action ActorAction) {
 	assert(IsActionLegal(s, action) == nil)
-
 	switch action.kind {
 	case INVALID:
 		panic("unreachable")
 	case PICK_VEG_FROM_MARKET:
 		{
 			for i := range action.amount {
-				card := s.market.cardSpots[action.ids[i]].card
+				card := getCardFromMarket(&s.market, action.ids[i])
 				s.actorData[s.activeActor].vegetableNum[card.vegType] += 1
 				s.market.cardSpots[action.ids[i]].hasCard = false
 			}

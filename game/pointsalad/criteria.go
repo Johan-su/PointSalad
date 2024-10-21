@@ -6,6 +6,25 @@ import (
 	"strconv"
 )
 
+type JCriteria struct {
+	PEPPER  string
+	LETTUCE string
+	CARROT  string
+	CABBAGE string
+	ONION   string
+	TOMATO  string
+}
+
+type JCard struct {
+	Id       int
+	Criteria JCriteria
+}
+
+type JCards struct {
+	Cards []JCard
+}
+
+
 type Criteria interface {
 	calculateScore(s *GameState, actorId int) int
 }

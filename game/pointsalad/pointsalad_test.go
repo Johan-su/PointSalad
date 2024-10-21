@@ -298,8 +298,8 @@ func TestCardFlipping(t *testing.T) {
 		t.Fatalf("Failed to create GameState")
 	}
 
-	for _, cardspot := range s.market.cardSpots {
-		if cardspot.hasCard {
+	for i := range s.market.cardSpots {
+		if hasCard(&s.market, i) {
 			t.Errorf("Market has cards before flipping cards\n")
 		}
 	}  
@@ -313,10 +313,11 @@ func TestCardFlipping(t *testing.T) {
 
 	for x := range 3 {
 		for y := range 2 {
-			if !s.market.cardSpots[x + 3 * y].hasCard {
+			if !hasCard(&s.market, x + 3 * y) {
 				t.Errorf("Expected card in market after flipping\n")
 			}
-			marketCard := s.market.cardSpots[x + 3 * y].card 
+
+			marketCard := getCardFromMarket(&s.market, x + 3 * y) 
 			top2Card := top2[x][y] 
 			if marketCard != top2Card  {
 				t.Errorf("expected card %v but got %v\n", top2Card, marketCard)
@@ -351,6 +352,73 @@ func TestRandomStartingPlayer(t *testing.T) {
 }
 
 // ---- Requirement 7 & 8 ----
+
+func TestPlayerOptions(t *testing.T) {
+	initJson()
+	// drawing vegetables
+	{
+		host, err := createGameState(&jsonCards, 1, 1, 0)
+		if err != nil {
+			t.Fatalf("Failed to create GameState")
+		}
+		host.activeActor = 0
+		hostRead := make(map[int]chan []byte)
+		hostWrite := make(map[int]chan []byte)
+	
+		hostRead[0] = make(chan []byte)
+		hostWrite[0] = make(chan []byte)
+	
+	
+		playerInput := "AB\nQ\n"
+		go runPlayerWithReader(hostWrite[0], hostRead[0], strings.NewReader(playerInput))
+		
+		
+		flipCardsFromPiles(&host.market)
+
+		card1 := getCardFromMarket(&host.market, 0)
+		card2 := getCardFromMarket(&host.market, 1)
+
+		host.RunHost(hostRead, hostWrite)
+
+		if host.actorData[0].vegetableNum[int(card1.vegType)] == 0 {
+			t.Errorf("expected vegetable %v in actordata\n", card1.vegType)
+		}
+
+		if host.actorData[0].vegetableNum[int(card2.vegType)] == 0 {
+			t.Errorf("expected vegetable %v in actordata\n", card2.vegType)
+		}
+
+	}
+
+	// drawing point card, and swapping
+	{
+		host, err := createGameState(&jsonCards, 1, 1, 0)
+		if err != nil {
+			t.Fatalf("Failed to create GameState")
+		}
+		host.activeActor = 0
+		hostRead := make(map[int]chan []byte)
+		hostWrite := make(map[int]chan []byte)
+	
+		hostRead[0] = make(chan []byte)
+		hostWrite[0] = make(chan []byte)
+	
+	
+		playerInput := "0\n0\nQ\n"
+		go runPlayerWithReader(hostWrite[0], hostRead[0], strings.NewReader(playerInput))
+	
+
+		p := host.market.piles[0]
+		card1 := p[len(p) - 3]
+
+		host.RunHost(hostRead, hostWrite)
+
+		if host.actorData[0].vegetableNum[int(card1.vegType)] == 0 {
+			t.Errorf("expected vegetable %v in actordata\n", card1.vegType)
+		}
+	}
+}
+
 
 // ---- Requirement 9 ----
 func TestShowHandToOtherPlayers(t *testing.T) {
@@ -401,15 +469,124 @@ func TestShowHandToOtherPlayers(t *testing.T) {
 
 // ---- Requirement 10 ----
 
-// ---- Requirement 11 ----
-
-func TestSwitchingDrawPile(t *testing.T) {
+func TestCardReplace(t *testing.T) {
 	initJson()
-	_, err := createGameState(&jsonCards, 0, 2, 0)
+	s, err := createGameState(&jsonCards, 0, 2, 0)
 	if err != nil {
 		t.Fatalf("Failed to create GameState")
 	}
+
+	p := s.market.piles[0]
+	assert(len(p) >= 2)
+	cardsBefore1 := p[len(p) - 1]
+	cardsBefore2 := p[len(p) - 2]
+	lenBefore := len(p)
+
+
+	flipCardsFromPiles(&s.market)
+	
+	lenAfter := len(p)
+
+	cardMarket1 := getCardFromMarket(&s.market, 0)
+	cardMarket2 := getCardFromMarket(&s.market, getMarketWidth(&s.market))
+
+
+	if lenBefore != lenAfter {
+		t.Errorf("expected %v length got %v\n", lenBefore - 2, lenAfter)
+	}
+
+	if cardMarket1 != cardsBefore1  {
+		t.Errorf("expected card to be equal to card in market\n")
+	}
+
+	if cardMarket2 != cardsBefore2 {
+		t.Errorf("expected card to be equal to card in market\n")
+	}
 }
+
+// ---- Requirement 11 ----
+func TestSwitchingDrawPile(t *testing.T) {
+	initJson()
+	s, err := createGameState(&jsonCards, 0, 2, 0)
+	if err != nil {
+		t.Fatalf("Failed to create GameState")
+	}
+	
+	s.market.piles[0] = s.market.piles[0][:1]
+	s.market.piles[2] = s.market.piles[2][:1]
+
+	p0 := s.market.piles[0]
+	p1 := s.market.piles[1]
+	p2 := s.market.piles[2] 
+
+	expected := [6]Card{}
+
+	expected[0] = p0[len(p0) - 1]
+	expected[3] = p1[0]
+
+	expected[1] = p1[len(p1) - 1]
+	expected[4] = p1[len(p1) - 2]
+
+	expected[2] = p2[len(p2) - 1]
+	expected[5] = p1[1]
+
+	flipCardsFromPiles(&s.market)
+
+	for i, expectedCard :=  range expected {
+		marketCard := getCardFromMarket(&s.market, i)
+		if expectedCard != marketCard {
+			t.Errorf("expected %v got %v\n", expectedCard, marketCard)
+		}
+	}
+}
+
+// ---- Requirement 12 & 14 ----
+func TestWinWhenEmpty(t *testing.T) {
+	initJson()
+	s, err := createGameState(&jsonCards, 0, 2, 0)
+	if err != nil {
+		t.Fatalf("Failed to create GameState")
+	}
+
+	
+	hostWrite := make(map[int]chan []byte)
+	hostWrite[0] = make(chan []byte)
+	
+	success := make(chan bool)
+	
+	go func() {
+		won := false
+		for {
+			in := <- hostWrite[0]
+			if len(in) == 0 {
+				break
+			}
+			if strings.Contains(string(in), "---- Final scores ----") {
+				won = true
+				break
+			}
+		}
+		success <- won
+	}()
+	
+	
+	hostRead := make(map[int]chan []byte)
+	s.RunHost(hostRead, hostWrite)
+
+
+	for i, pile := range s.market.piles {
+		if len(pile) != 0 {
+			t.Errorf("expected pile %d to be empty", i)
+		}
+	}
+
+	hasWon := <- success
+	if !hasWon {
+		t.Errorf("expected a winner after game is over")
+	}
+}
+
+
 
 // ---- Requirement 13 ----
 
