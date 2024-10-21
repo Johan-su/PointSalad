@@ -32,6 +32,10 @@ func (c *CriteriaMost) calculateScore(s *GameState, actorId int) int {
 	return c.score
 }
 
+func (c *CriteriaMost) String() string {
+	return fmt.Sprintf("MOST %v = %v", c.vegType, c.score)
+}
+
 type CriteriaFewest struct {
 	vegType VegType
 	score   int
@@ -52,6 +56,10 @@ func (c *CriteriaFewest) calculateScore(s *GameState, actorId int) int {
 		return 0
 	}
 	return c.score
+}
+
+func (c *CriteriaFewest) String() string {
+	return fmt.Sprintf("FEWEST %v = %v", c.vegType, c.score)
 }
 
 type CriteriaEvenOdd struct {
