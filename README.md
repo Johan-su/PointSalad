@@ -13,6 +13,12 @@ go build -o pointsalad ./cmd
 ./pointsalad -help
 ```
 
+using go run to build and run should also work
+## Run
+```console
+go run ./cmd -help
+```
+
 ## Running server
 
 ```console
