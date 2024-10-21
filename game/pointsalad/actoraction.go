@@ -10,11 +10,11 @@ import (
 type ActorActionType int
 
 const (
-	INVALID                ActorActionType = iota
-	PICK_VEG_FROM_MARKET   ActorActionType = iota
-	PICK_POINT_FROM_MARKET ActorActionType = iota
-	PICK_TO_SWAP           ActorActionType = iota
-	QUIT                   ActorActionType = iota
+	Invalid                ActorActionType = iota
+	pickVegFromMarket   ActorActionType = iota
+	pickPointFromMarket ActorActionType = iota
+	pickToSwap           ActorActionType = iota
+	Quit                   ActorActionType = iota
 )
 
 type ActorAction struct {
@@ -42,13 +42,13 @@ func getMarketActionFromBot(s *GameState) ActorAction {
 	for {
 		action = ActorAction{}
 		if rand.Intn(2) == 0 {
-			action.kind = PICK_VEG_FROM_MARKET
+			action.kind = pickVegFromMarket
 			action.amount = rand.Intn(2) + 1
 			for i := range action.amount {
 				action.ids[i] = rand.Intn(marketWidth * marketHeight)
 			}
 		} else {
-			action.kind = PICK_POINT_FROM_MARKET
+			action.kind = pickPointFromMarket
 			action.amount = 1
 			action.ids[0] = rand.Intn(marketWidth)
 		}
@@ -90,7 +90,7 @@ func getSwapActionFromBot(s *GameState) ActorAction {
 
 	action := ActorAction{}
 	for true {
-		action.kind = PICK_TO_SWAP
+		action.kind = pickToSwap
 		action.amount = rand.Intn(2)
 
 		for i := range action.amount {
@@ -142,15 +142,15 @@ func parseMarketActionFromPlayer(s *GameState, input []byte) (ActorAction, error
 
 	if len(input) == 1 && input[0] >= '0' && input[0] <= '9' {
 		index := int(input[0] - '0')
-		action = ActorAction{kind: PICK_POINT_FROM_MARKET, amount: 1, ids: [2]int{index, 0}}
+		action = ActorAction{kind: pickPointFromMarket, amount: 1, ids: [2]int{index, 0}}
 
 	} else if len(input) == 1 && isWithinAtoF(input[0]) {
 		index := int(input[0] - 'A')
-		action = ActorAction{kind: PICK_VEG_FROM_MARKET, amount: 1, ids: [2]int{index, 0}}
+		action = ActorAction{kind: pickVegFromMarket, amount: 1, ids: [2]int{index, 0}}
 
 	} else if len(input) == 2 && isWithinAtoF(input[0]) && isWithinAtoF(input[1]) {
 		indicies := [2]int{int(input[0] - 'A'), int(input[1] - 'A')}
-		action = ActorAction{kind: PICK_VEG_FROM_MARKET, amount: 2, ids: indicies}
+		action = ActorAction{kind: pickVegFromMarket, amount: 2, ids: indicies}
 
 	} else {
 		return action, fmt.Errorf("Invalid input")
@@ -181,13 +181,13 @@ func parseSwapActionFromPlayer(s *GameState, input []byte) (ActorAction, error) 
 	action := ActorAction{}
 
 	if input[0] == 'n' {
-		action = ActorAction{kind: PICK_TO_SWAP, amount: 0}
+		action = ActorAction{kind: pickToSwap, amount: 0}
 	} else {
 		index, err := strconv.Atoi(string(input))
 		if err != nil {
 			return action, fmt.Errorf("Expected a number or 'n'\n")
 		}
-		action = ActorAction{kind: PICK_TO_SWAP, amount: 1, ids: [2]int{index, 0}}
+		action = ActorAction{kind: pickToSwap, amount: 1, ids: [2]int{index, 0}}
 	}
 	err := isActionLegal(s, action)
 	if err != nil {
@@ -211,9 +211,9 @@ func isActionLegal(s *GameState, action ActorAction) error {
 	marketWidth := getMarketWidth(&s.market)
 	marketSize := marketWidth * getMarketHeight(&s.market)
 	switch action.kind {
-	case INVALID:
+	case Invalid:
 		return fmt.Errorf("Invalid action kind")
-	case PICK_VEG_FROM_MARKET:
+	case pickVegFromMarket:
 		{
 			if action.amount < 1 || action.amount > 2 {
 				return fmt.Errorf("Amount of actions outside of range: %d", action.amount)
@@ -237,7 +237,7 @@ func isActionLegal(s *GameState, action ActorAction) error {
 
 			}
 		}
-	case PICK_POINT_FROM_MARKET:
+	case pickPointFromMarket:
 		{
 			if action.amount != 1 {
 				return fmt.Errorf("Amount of actions outside of range: %d", action.amount)
@@ -249,7 +249,7 @@ func isActionLegal(s *GameState, action ActorAction) error {
 				return fmt.Errorf("Cannot take card from empty pile")
 			}
 		}
-	case PICK_TO_SWAP:
+	case pickToSwap:
 		{
 			if action.amount < 0 || action.amount > 1 {
 				return fmt.Errorf("Amount of actions outside of range: %d", action.amount)
@@ -276,9 +276,9 @@ func isActionLegal(s *GameState, action ActorAction) error {
 func doAction(s *GameState, action ActorAction) {
 	assert(isActionLegal(s, action) == nil)
 	switch action.kind {
-	case INVALID:
+	case Invalid:
 		panic("unreachable")
-	case PICK_VEG_FROM_MARKET:
+	case pickVegFromMarket:
 		{
 			for i := range action.amount {
 				card := getCardFromMarket(&s.market, action.ids[i])
@@ -286,14 +286,14 @@ func doAction(s *GameState, action ActorAction) {
 				s.market.cardSpots[action.ids[i]].hasCard = false
 			}
 		}
-	case PICK_POINT_FROM_MARKET:
+	case pickPointFromMarket:
 		{
 			for i := range action.amount {
 				card := drawFromTop(&s.market, action.ids[i])
 				s.actorData[s.activeActor].pointPile = append(s.actorData[s.activeActor].pointPile, card)
 			}
 		}
-	case PICK_TO_SWAP:
+	case pickToSwap:
 		{
 			if action.amount == 1 {
 				veg_type := s.actorData[s.activeActor].pointPile[action.ids[0]].vegType
@@ -315,15 +315,15 @@ func getActionString(s *GameState, action ActorAction) string {
 
 	builder.WriteString("---- Action ----\n")
 	switch action.kind {
-	case INVALID:
+	case Invalid:
 		panic("unreachable")
-	case PICK_VEG_FROM_MARKET:
+	case pickVegFromMarket:
 		{
 			for i := range action.amount {
 				builder.WriteString(fmt.Sprintf("Player %d drew %v from market\n", s.activeActor, getCardFromMarket(&s.market, action.ids[i]).vegType.String()))
 			}
 		}
-	case PICK_POINT_FROM_MARKET:
+	case pickPointFromMarket:
 		{
 			for i := range action.amount {
 				pile := s.market.piles[action.ids[i]]
@@ -332,7 +332,7 @@ func getActionString(s *GameState, action ActorAction) string {
 				builder.WriteString(fmt.Sprintf("Player %d drew %v from market\n", s.activeActor, criteria))
 			}
 		}
-	case PICK_TO_SWAP:
+	case pickToSwap:
 		{
 			if action.amount == 0 {
 				builder.WriteString(fmt.Sprintf("Player %d did not swap any card\n", s.activeActor))

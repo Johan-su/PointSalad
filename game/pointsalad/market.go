@@ -1,5 +1,10 @@
 package pointsalad
 
+import (
+	"strings"
+	"fmt"
+)
+
 type CardSpot struct {
 	hasCard bool
 	card    Card
@@ -150,4 +155,25 @@ func hasCard(m *Market, id int) bool {
 func getCardFromMarket(m *Market, id int) Card {
 	assert(hasCard(m, id))
 	return m.cardSpots[id].card
+}
+
+func getMarketString(m *Market) string {
+	builder := strings.Builder{}
+	builder.WriteString("---- MARKET ----\n")
+	for i := range m.cardSpots {
+		if hasCard(m, i) {
+			card := getCardFromMarket(m, i)
+			builder.WriteString(fmt.Sprintf("[%c] %v\n", i+'A', card.vegType))
+		}
+	}
+	builder.WriteString("piles:\n")
+	for i, pile := range m.piles {
+		if len(pile) > 0 {
+			topCard := pile[len(pile)-1]
+			builder.WriteString(fmt.Sprintf("[%d] %s\n", i, topCard.criteria.String()))
+		} else {
+			builder.WriteString("\n")
+		}
+	}
+	return builder.String()
 }

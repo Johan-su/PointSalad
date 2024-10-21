@@ -149,7 +149,7 @@ func (state *GameState) RunHost(in map[int]chan []byte, out map[int]chan []byte)
 		if is_bot {
 			market_action = getMarketActionFromBot(state)
 		} else {
-			s := getActorCardsString(state, state.activeActor) + getMarketString(state)
+			s := getActorCardsString(state, state.activeActor) + getMarketString(&state.market)
 			out[state.activeActor] <- []byte(s)
 			for {
 				out[state.activeActor] <- []byte("pick 1 or 2 vegetables example: AB or\npick 1 point card example: 0\n")
@@ -476,26 +476,7 @@ func broadcastToAll(out map[int]chan []byte, str string) {
 	}
 }
 
-func getMarketString(s *GameState) string {
-	builder := strings.Builder{}
-	builder.WriteString("---- MARKET ----\n")
-	for i := range s.market.cardSpots {
-		if hasCard(&s.market, i) {
-			card := getCardFromMarket(&s.market, i)
-			builder.WriteString(fmt.Sprintf("[%c] %v\n", i+'A', card.vegType))
-		}
-	}
-	builder.WriteString("piles:\n")
-	for i, pile := range s.market.piles {
-		if len(pile) > 0 {
-			topCard := pile[len(pile)-1]
-			builder.WriteString(fmt.Sprintf("[%d] %s\n", i, topCard.criteria.String()))
-		} else {
-			builder.WriteString("\n")
-		}
-	}
-	return builder.String()
-}
+
 
 func getActorCardsString(s *GameState, actorId int) string {
 	assert(actorId < len(s.actorData))
