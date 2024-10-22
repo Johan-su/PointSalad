@@ -29,7 +29,7 @@ func main() {
 		host.Init(playerNum, botNum)
 
 		server := network.CreateTCPServer()
-		err := server.Init(port, playerNum, host.GetMaxHostDataSize())
+		err := server.Listen(port, playerNum, host.GetMaxHostDataSize())
 		if err != nil {
 			log.Fatalf("%s\n", err)
 		}

@@ -169,7 +169,7 @@ type Server struct {
 	listener             net.Listener
 }
 
-// Init initializes the server to listen on the specified port and accepts connections
+// Listen initializes the server to listen on the specified port and accepts connections
 // from a predefined number of players. It sets up channels for communication with each player
 // and starts goroutines to handle reading and writing data from/to each connected client.
 //
@@ -181,7 +181,7 @@ type Server struct {
 // Returns:
 //   - error: Returns an error if there is an issue during the server setup or client connections,
 //     or nil if the server was successfully initialized and is accepting connections.
-func (server *Server) Init(port string, playerNum int, serverMaxReceiveSize int) error {
+func (server *Server) Listen(port string, playerNum int, serverMaxReceiveSize int) error {
 	server.serverMaxReceiveSize = serverMaxReceiveSize
 	log.Printf("listening on port %v\n", port)
 	ln, err := net.Listen("tcp", ":"+port)

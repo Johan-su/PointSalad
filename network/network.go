@@ -26,7 +26,7 @@ type Client interface {
 // and managing multiple connections at once.
 //
 // Methods:
-//   - Init(port string, playerNum int, serverMaxReceiveSize int): Initializes the server to listen on the given
+//   - Listen(port string, playerNum int, serverMaxReceiveSize int): Initializes the server to listen on the given
 //     port with the specified number of players and maximum receive size for incoming data.
 //   - Close(): Closes the server, stopping all communication and accepting no further connections.
 //   - GetReadChannels(): Returns a map of channels used for receiving data from each connected client,
@@ -34,7 +34,7 @@ type Client interface {
 //   - GetWriteChannels(): Returns a map of channels used for sending data to each connected client,
 //     keyed by the client ID.
 type Server interface {
-	Init(port string, playerNum int, serverMaxReceiveSize int) error
+	Listen(port string, playerNum int, serverMaxReceiveSize int) error
 	Close()
 	GetReadChannels() map[int]chan []byte
 	GetWriteChannels() map[int]chan []byte
