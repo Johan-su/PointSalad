@@ -13,14 +13,22 @@ import (
 //   - RunPlayer(in chan []byte, out chan []byte): Starts the game in player mode, allowing a human player to interact with the game.
 //   - GetMaxHostDataSize(): Returns the maximum data size that can be received by the host (server).
 //   - GetMaxPlayerDataSize(): Returns the maximum data size that can be sent by the player (client).
-type Game interface {
+type GameHost interface {
 	Init(playerNum int, botNum int)
 	RunHost(in map[int]chan []byte, out map[int]chan []byte)
-	RunPlayer(in chan []byte, out chan []byte)
 	GetMaxHostDataSize() int
+}
+
+type GamePlayer interface {
+	Init()
+	RunPlayer(in chan []byte, out chan []byte)
 	GetMaxPlayerDataSize() int
 }
 
-func CreatePointSalad() Game {
-	return &pointsalad.GameState{}
+func CreatePointSaladHost() GameHost {
+	return &pointsalad.GameHostState{}
+}
+
+func CreatePointSaladPlayer() GamePlayer {
+	return &pointsalad.GamePlayerState{}
 }

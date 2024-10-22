@@ -10,11 +10,11 @@ import (
 type ActorActionType int
 
 const (
-	Invalid                ActorActionType = iota
+	Invalid             ActorActionType = iota
 	pickVegFromMarket   ActorActionType = iota
 	pickPointFromMarket ActorActionType = iota
-	pickToSwap           ActorActionType = iota
-	Quit                   ActorActionType = iota
+	pickToSwap          ActorActionType = iota
+	Quit                ActorActionType = iota
 )
 
 type ActorAction struct {
@@ -23,19 +23,19 @@ type ActorAction struct {
 	ids    [2]int
 }
 
-// getMarketActionFromBot generates a random market action for a bot player. The bot either chooses 
+// getMarketActionFromBot generates a random market action for a bot player. The bot either chooses
 // to pick vegetables or point cards from the market. It performs this action only if the action is legal
-// and results in an equal or better score compared to the current game state. It ensures that the action 
+// and results in an equal or better score compared to the current game state. It ensures that the action
 // chosen is beneficial by simulating the effect of the action before finalizing it.
 //
 // Parameters:
-//   - s: The current game state (GameState) to evaluate the action on.
+//   - s: The current game state (GameHostState) to evaluate the action on.
 //
 // Returns:
 //   - An ActorAction representing the bot's decision on the market (either picking vegetables or point cards).
 //
 // This function ensures that the bot chooses an action that is legal and maximizes or maintains the bot's score.
-func getMarketActionFromBot(s *GameState) ActorAction {
+func getMarketActionFromBot(s *GameHostState) ActorAction {
 	marketWidth := getMarketWidth(&s.market)
 	marketHeight := getMarketHeight(&s.market)
 	var action ActorAction
@@ -56,7 +56,7 @@ func getMarketActionFromBot(s *GameState) ActorAction {
 		if err == nil {
 			beforeScore := calculateScore(s, s.activeActor)
 
-			new_s := deepCloneGameState(s)
+			new_s := deepCloneGameHostState(s)
 
 			assert(fmt.Sprintf("%v", new_s) == fmt.Sprintf("%v", *s))
 			doAction(&new_s, action)
@@ -73,19 +73,19 @@ func getMarketActionFromBot(s *GameState) ActorAction {
 	return action
 }
 
-// getSwapActionFromBot generates a random swap action for a bot player. The bot chooses to swap one or 
-// two point cards from their point pile with vegetables from the market. The action is only accepted 
-// if it is legal and results in a score that is equal to or greater than the previous score. 
+// getSwapActionFromBot generates a random swap action for a bot player. The bot chooses to swap one or
+// two point cards from their point pile with vegetables from the market. The action is only accepted
+// if it is legal and results in a score that is equal to or greater than the previous score.
 // The bot makes sure the chosen swap is beneficial by simulating the result first.
 //
 // Parameters:
-//   - s: The current game state (GameState) to evaluate the swap action on.
+//   - s: The current game state (GameHostState) to evaluate the swap action on.
 //
 // Returns:
 //   - An ActorAction representing the bot's decision to swap point cards for vegetables.
 //
 // This function ensures the bot chooses a swap action that is legal and maximizes or maintains the bot's score.
-func getSwapActionFromBot(s *GameState) ActorAction {
+func getSwapActionFromBot(s *GameHostState) ActorAction {
 	assert(len(s.actorData[s.activeActor].pointPile) > 0)
 
 	action := ActorAction{}
@@ -102,7 +102,7 @@ func getSwapActionFromBot(s *GameState) ActorAction {
 		if err == nil {
 			beforeScore := calculateScore(s, s.activeActor)
 
-			new_s := deepCloneGameState(s)
+			new_s := deepCloneGameHostState(s)
 
 			doAction(&new_s, action)
 
@@ -126,7 +126,7 @@ func isWithinAtoF(a byte) bool {
 // If the input is invalid or the action is illegal, an error is returned.
 //
 // Parameters:
-//   - s: The current game state (GameState).
+//   - s: The current game state (GameHostState).
 //   - input: A slice of bytes representing the player's input.
 //
 // Returns:
@@ -137,7 +137,7 @@ func isWithinAtoF(a byte) bool {
 //   - A single digit ('0'-'9') to pick a point card from the market.
 //   - A single letter ('A'-'F') to pick a vegetable from the market.
 //   - Two letters ('A'-'F') to pick two vegetables from the market.
-func parseMarketActionFromPlayer(s *GameState, input []byte) (ActorAction, error) {
+func parseMarketActionFromPlayer(s *GameHostState, input []byte) (ActorAction, error) {
 	action := ActorAction{}
 
 	if len(input) == 1 && input[0] >= '0' && input[0] <= '9' {
@@ -162,12 +162,12 @@ func parseMarketActionFromPlayer(s *GameState, input []byte) (ActorAction, error
 	return action, nil
 }
 
-// parseSwapActionFromPlayer parses a player's input for a swap action. The player can either 
+// parseSwapActionFromPlayer parses a player's input for a swap action. The player can either
 // choose to skip the swap ('n') or specify an index to swap a point card with a vegetable from the market.
 // If the input is invalid or the swap is not legal, an error is returned.
 //
 // Parameters:
-//   - s: The current game state (GameState).
+//   - s: The current game state (GameHostState).
 //   - input: A slice of bytes representing the player's input.
 //
 // Returns:
@@ -177,7 +177,7 @@ func parseMarketActionFromPlayer(s *GameState, input []byte) (ActorAction, error
 // The input can be:
 //   - 'n' to indicate no swap.
 //   - A number to indicate the index of the point card the player wants to swap.
-func parseSwapActionFromPlayer(s *GameState, input []byte) (ActorAction, error) {
+func parseSwapActionFromPlayer(s *GameHostState, input []byte) (ActorAction, error) {
 	action := ActorAction{}
 
 	if input[0] == 'n' {
@@ -202,12 +202,12 @@ func parseSwapActionFromPlayer(s *GameState, input []byte) (ActorAction, error) 
 // If any part of the action is illegal, an error is returned. Otherwise, the action is deemed legal.
 //
 // Parameters:
-//   - s: The current game state (GameState).
+//   - s: The current game state (GameHostState).
 //   - action: The action to be validated (ActorAction).
 //
 // Returns:
 //   - error: Returns an error if the action is illegal; otherwise, returns nil if the action is legal.
-func isActionLegal(s *GameState, action ActorAction) error {
+func isActionLegal(s *GameHostState, action ActorAction) error {
 	marketWidth := getMarketWidth(&s.market)
 	marketSize := marketWidth * getMarketHeight(&s.market)
 	switch action.kind {
@@ -269,11 +269,11 @@ func isActionLegal(s *GameState, action ActorAction) error {
 // before this function is called (i.e., `isActionLegal` must return nil).
 //
 // Parameters:
-//   - s: The current game state (GameState).
+//   - s: The current game state (GameHostState).
 //   - action: The action to be performed (ActorAction).
 //
 // This function does not return any value. It modifies the game state directly based on the action kind.
-func doAction(s *GameState, action ActorAction) {
+func doAction(s *GameHostState, action ActorAction) {
 	assert(isActionLegal(s, action) == nil)
 	switch action.kind {
 	case Invalid:
@@ -309,7 +309,7 @@ func doAction(s *GameState, action ActorAction) {
 	}
 }
 
-func getActionString(s *GameState, action ActorAction) string {
+func getActionString(s *GameHostState, action ActorAction) string {
 	assert(isActionLegal(s, action) == nil)
 	builder := strings.Builder{}
 
@@ -328,8 +328,7 @@ func getActionString(s *GameState, action ActorAction) string {
 			for i := range action.amount {
 				pile := s.market.piles[action.ids[i]]
 				card := pile[len(pile)-1]
-				criteria := card.criteria.String()
-				builder.WriteString(fmt.Sprintf("Player %d drew %v (%v) from market\n", s.activeActor, criteria, card.vegType))
+				builder.WriteString(fmt.Sprintf("Player %d drew %v from market\n", s.activeActor, card))
 			}
 		}
 	case pickToSwap:

@@ -31,13 +31,17 @@ const (
 const (
 	playPilesNum          = 3
 	marketColumns         = 2
-	serverByteReceiveSize = 4
-	serverByteSendSize    = 1024
+	hostByteReceiveSize   = 4
+	clientByteReceiveSize = 1024
 )
 
 type Card struct {
 	criteria Criteria
 	vegType  VegType
+}
+
+func (c Card) String() string {
+	return fmt.Sprintf("%s (%s)", c.criteria, c.vegType)
 }
 
 type ActorData struct {
@@ -47,7 +51,7 @@ type ActorData struct {
 
 // actors are players and bots
 
-type GameState struct {
+type GameHostState struct {
 	// market
 	market Market
 
@@ -70,7 +74,7 @@ type GameState struct {
 //   - botNum: The number of bots in the game. The total number of players and bots must be between 2 and 6 (inclusive).
 //
 // Side effects:
-//   - The function modifies the `GameState` object (`state`) to reflect the initialized game state with players, bots, and cards.
+//   - The function modifies the `GameHostState` object (`state`) to reflect the initialized game state with players, bots, and cards.
 //
 // Returns:
 //   - None. In case of an error (e.g., invalid number of players/bots or failure to read the game manifest), the function will log the error and terminate the program.
@@ -78,7 +82,7 @@ type GameState struct {
 // Example usage:
 //   - To start a new game with 2 human players and 1 bot:
 //     state.Init(2, 1)
-func (state *GameState) Init(playerNum int, botNum int) {
+func (state *GameHostState) Init(playerNum int, botNum int) {
 	actorNum := playerNum + botNum
 
 	if !(actorNum >= 2 && actorNum <= 6) {
@@ -99,7 +103,7 @@ func (state *GameState) Init(playerNum int, botNum int) {
 
 	{
 		seed := time.Now().Unix()
-		game_state, err := createGameState(&jsonCards, playerNum, botNum, seed)
+		game_state, err := createGameHostState(&jsonCards, playerNum, botNum, seed)
 		if err != nil {
 			log.Fatalf("ERROR: Failed to create game state: %s\n", err)
 			return
@@ -132,7 +136,7 @@ func (state *GameState) Init(playerNum int, botNum int) {
 // Example usage:
 //   - To start the host game loop with two human players and one bot:
 //     state.RunHost(playerInputChannels, botInputChannels)
-func (state *GameState) RunHost(in map[int]chan []byte, out map[int]chan []byte) {
+func (state *GameHostState) RunHost(in map[int]chan []byte, out map[int]chan []byte) {
 	var err error
 	for _, v := range in {
 		assert(v != nil)
@@ -210,6 +214,37 @@ func (state *GameState) RunHost(in map[int]chan []byte, out map[int]chan []byte)
 	}
 }
 
+// GetMaxHostDataSize returns the maximum size (in bytes) that the server (host) can receive from clients.
+//
+// This function is used to define the maximum allowed size of incoming data packets for the server, which helps prevent overloads or malicious data injections.
+//
+// Parameters:
+//   - None
+//
+// Returns:
+//   - An integer representing the maximum size of data packets the host can handle.
+func (_ *GameHostState) GetMaxHostDataSize() int {
+	return hostByteReceiveSize
+}
+
+type GamePlayerState struct {
+	reader io.Reader
+}
+
+// Init initializes the GamePlayerState by setting up the input reader
+// to read from the standard input (os.Stdin). This method creates a new
+// bufio.Reader instance, which can be used to efficiently read input
+// from the user line-by-line or byte-by-byte.
+//
+// Example usage:
+//
+//	playerState := &GamePlayerState{}
+//	playerState.Init()
+//	// Now playerState.reader can be used to read input.
+func (s *GamePlayerState) Init() {
+	s.reader = bufio.NewReader(os.Stdin)
+}
+
 // RunPlayer starts the player game loop for human players, reading and writing data from/to the player's input and output channels.
 //
 // This function serves as an entry point for running a player in the game. It uses `runPlayerWithReader` to handle player interaction with the game through standard input and output channels.
@@ -223,21 +258,8 @@ func (state *GameState) RunHost(in map[int]chan []byte, out map[int]chan []byte)
 //
 // Returns:
 //   - None. The function loops indefinitely until the player quits (by sending a "quit" command).
-func (_ *GameState) RunPlayer(in chan []byte, out chan []byte) {
-	runPlayerWithReader(in, out, bufio.NewReader(os.Stdin))
-}
-
-// GetMaxHostDataSize returns the maximum size (in bytes) that the server (host) can receive from clients.
-//
-// This function is used to define the maximum allowed size of incoming data packets for the server, which helps prevent overloads or malicious data injections.
-//
-// Parameters:
-//   - None
-//
-// Returns:
-//   - An integer representing the maximum size of data packets the host can handle.
-func (_ *GameState) GetMaxHostDataSize() int {
-	return serverByteReceiveSize
+func (s *GamePlayerState) RunPlayer(in chan []byte, out chan []byte) {
+	runPlayerWithReader(in, out, s.reader)
 }
 
 // GetMaxPlayerDataSize returns the maximum size (in bytes) that the player can send to the server (host).
@@ -249,8 +271,8 @@ func (_ *GameState) GetMaxHostDataSize() int {
 //
 // Returns:
 //   - An integer representing the maximum size of data packets a player can send.
-func (_ *GameState) GetMaxPlayerDataSize() int {
-	return serverByteSendSize
+func (_ *GamePlayerState) GetMaxPlayerDataSize() int {
+	return clientByteReceiveSize
 }
 
 // runPlayerWithReader handles player interaction with the game using a specified input reader (e.g., stdin).
@@ -310,7 +332,7 @@ func expectResponse(data []byte) bool {
 	return strings.Contains(string(data), "pick")
 }
 
-func hasWon(state *GameState) bool {
+func hasWon(state *GameHostState) bool {
 	// winner if all piles are empty
 	for i := range state.market.piles {
 		if len(state.market.piles[i]) != 0 {
@@ -320,7 +342,7 @@ func hasWon(state *GameState) bool {
 	return true
 }
 
-func getFinalScoresString(state *GameState) string {
+func getFinalScoresString(state *GameHostState) string {
 	type Score struct {
 		score   int
 		actorId int
@@ -394,7 +416,7 @@ func createDeck(jsonCards *JCards, perVegetableNum int) []Card {
 	return deck
 }
 
-// createGameState initializes a new game state with a shuffled deck and a random seed for actor turns.
+// createGameHostState initializes a new game state with a shuffled deck and a random seed for actor turns.
 // It creates the game market, assigns actors (players and bots), and sets up the initial conditions for the game based on the provided parameters.
 //
 // Parameters:
@@ -404,16 +426,16 @@ func createDeck(jsonCards *JCards, perVegetableNum int) []Card {
 //   - seed: A seed for the random number generator, used to ensure consistent randomization across game sessions.
 //
 // Returns:
-//   - A `GameState` structure representing the initialized game state.
+//   - A `GameHostState` structure representing the initialized game state.
 //   - An error if the number of players + bots is out of the expected range (between 2 and 6).
-func createGameState(jsonCards *JCards, playerNum int, botNum int, seed int64) (GameState, error) {
+func createGameHostState(jsonCards *JCards, playerNum int, botNum int, seed int64) (GameHostState, error) {
 	actorNum := playerNum + botNum
 	if !(actorNum >= 2 && actorNum <= 6) {
-		return GameState{}, fmt.Errorf("Number of players + bots have to be between 2-6")
+		return GameHostState{}, fmt.Errorf("Number of players + bots have to be between 2-6")
 	}
 	rand.Seed(seed)
 
-	s := GameState{}
+	s := GameHostState{}
 
 	deck := createDeck(jsonCards, 3*actorNum)
 	rand.Shuffle(len(deck), func(i int, j int) {
@@ -432,16 +454,16 @@ func createGameState(jsonCards *JCards, playerNum int, botNum int, seed int64) (
 	return s, nil
 }
 
-// deepCloneGameState creates a deep copy of the provided game state, including all market piles, card spots, and actor data (vegetables and point piles).
+// deepCloneGameHostState creates a deep copy of the provided game state, including all market piles, card spots, and actor data (vegetables and point piles).
 // The cloned game state will be an exact copy of the original, allowing for parallel game simulations or backups.
 //
 // Parameters:
-//   - s: The original `GameState` structure to be cloned.
+//   - s: The original `GameHostState` structure to be cloned.
 //
 // Returns:
-//   - A new `GameState` structure that is a deep clone of the original game state.
-func deepCloneGameState(s *GameState) GameState {
-	new := GameState{}
+//   - A new `GameHostState` structure that is a deep clone of the original game state.
+func deepCloneGameHostState(s *GameHostState) GameHostState {
+	new := GameHostState{}
 
 	for i := range s.market.piles {
 		new.market.piles = append(new.market.piles, []Card{})
@@ -476,9 +498,7 @@ func broadcastToAll(out map[int]chan []byte, str string) {
 	}
 }
 
-
-
-func getActorCardsString(s *GameState, actorId int) string {
+func getActorCardsString(s *GameHostState, actorId int) string {
 	assert(actorId < len(s.actorData))
 	builder := strings.Builder{}
 	builder.WriteString(fmt.Sprintf("---- Player %d ----\n", actorId))
@@ -493,13 +513,12 @@ func getActorCardsString(s *GameState, actorId int) string {
 	builder.WriteString("---- point cards ----\n")
 
 	for i, card := range s.actorData[actorId].pointPile {
-		builder.WriteString(fmt.Sprintf("%d: %s\n", i, card.criteria.String()))
+		builder.WriteString(fmt.Sprintf("%d: %s\n", i, card))
 	}
 	return builder.String()
 }
 
-
-func calculateScore(s *GameState, actorId int) int {
+func calculateScore(s *GameHostState, actorId int) int {
 	score := 0
 	for _, pointCard := range s.actorData[actorId].pointPile {
 

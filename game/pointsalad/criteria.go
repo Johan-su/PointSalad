@@ -60,7 +60,7 @@ func getJCriteria(jsonCards *JCards, vegType VegType, id int) string {
 }
 
 type Criteria interface {
-	calculateScore(s *GameState, actorId int) int
+	calculateScore(s *GameHostState, actorId int) int
 	String() string
 }
 
@@ -72,14 +72,14 @@ type CriteriaMost struct {
 // calculateScore calculates the score based on the actor's vegetable count for a specific vegetable type.
 // It checks whether the actor with the given actorId has the highest vegetable count for the specified vegetable type (vegType).
 // If the actor does not have the highest count, the function returns 0. Otherwise, it returns the score associated with this criterion.
-// 
+//
 // Parameters:
-//   - s *GameState: The current state of the game containing actor data and vegetable counts.
+//   - s *GameHostState: The current state of the game containing actor data and vegetable counts.
 //   - actorId int: The ID of the actor whose score is being calculated.
 //
 // Returns:
 //   - int: The calculated score for the actor.
-func (c *CriteriaMost) calculateScore(s *GameState, actorId int) int {
+func (c *CriteriaMost) calculateScore(s *GameHostState, actorId int) int {
 	vegType := int(c.vegType)
 
 	max := math.MinInt32
@@ -115,12 +115,12 @@ type CriteriaFewest struct {
 // If the actor does not have the fewest count, the function returns 0. Otherwise, it returns the score associated with this criterion.
 //
 // Parameters:
-//   - s *GameState: The current state of the game containing actor data and vegetable counts.
+//   - s *GameHostState: The current state of the game containing actor data and vegetable counts.
 //   - actorId int: The ID of the actor whose score is being calculated.
 //
 // Returns:
 //   - int: The calculated score for the actor.
-func (c *CriteriaFewest) calculateScore(s *GameState, actorId int) int {
+func (c *CriteriaFewest) calculateScore(s *GameHostState, actorId int) int {
 	vegType := int(c.vegType)
 
 	min := math.MaxInt32
@@ -158,12 +158,12 @@ type CriteriaEvenOdd struct {
 // otherwise, it returns the oddScore.
 //
 // Parameters:
-//   - s *GameState: The current state of the game containing actor data and vegetable counts.
+//   - s *GameHostState: The current state of the game containing actor data and vegetable counts.
 //   - actorId int: The ID of the actor whose score is being calculated.
 //
 // Returns:
 //   - int: The calculated score based on whether the vegetable count is even or odd.
-func (c *CriteriaEvenOdd) calculateScore(s *GameState, actorId int) int {
+func (c *CriteriaEvenOdd) calculateScore(s *GameHostState, actorId int) int {
 	if s.actorData[actorId].vegetableNum[c.vegType]%2 == 0 {
 		return c.evenScore
 	} else {
@@ -189,12 +189,12 @@ type CriteriaPer struct {
 // For each vegetable type, the actor's vegetable count is multiplied by the corresponding per-value from perScores, and the results are summed to get the total score.
 //
 // Parameters:
-//   - s *GameState: The current state of the game containing actor data and vegetable counts.
+//   - s *GameHostState: The current state of the game containing actor data and vegetable counts.
 //   - actorId int: The ID of the actor whose score is being calculated.
 //
 // Returns:
 //   - int: The calculated score for the actor, based on the perScores for each vegetable type.
-func (c *CriteriaPer) calculateScore(s *GameState, actorId int) int {
+func (c *CriteriaPer) calculateScore(s *GameHostState, actorId int) int {
 	score := 0
 	for j, per_value := range c.perScores {
 		score += s.actorData[actorId].vegetableNum[j] * per_value
@@ -236,12 +236,12 @@ type CriteriaSum struct {
 // If no valid vegetable types are found, the score is 0.
 //
 // Parameters:
-//   - s *GameState: The current state of the game containing actor data and vegetable counts.
+//   - s *GameHostState: The current state of the game containing actor data and vegetable counts.
 //   - actorId int: The ID of the actor whose score is being calculated.
 //
 // Returns:
 //   - int: The calculated score for the actor, which is the minimum of the non-repeated vegetable counts, multiplied by the given score.
-func (c *CriteriaSum) calculateScore(s *GameState, actorId int) int {
+func (c *CriteriaSum) calculateScore(s *GameHostState, actorId int) int {
 	min := math.MaxInt32
 	for j, count := range c.vegCount {
 		if count == 0 {
@@ -293,13 +293,13 @@ type CriteriaMostTotal struct {
 // score is returned.
 //
 // Parameters:
-//   - s *GameState: The current state of the game containing actor data and vegetable counts.
+//   - s *GameHostState: The current state of the game containing actor data and vegetable counts.
 //   - actorId int: The ID of the actor whose score is being calculated.
 //
 // Returns:
 //   - int: The calculated score for the actor, which is 0 if any other actor has an equal or greater total vegetable count,
 //     otherwise it returns the score associated with this criterion.
-func (c *CriteriaMostTotal) calculateScore(s *GameState, actorId int) int {
+func (c *CriteriaMostTotal) calculateScore(s *GameHostState, actorId int) int {
 	vegCount := 0
 	for _, count := range s.actorData[actorId].vegetableNum {
 		vegCount += count
@@ -337,13 +337,13 @@ type CriteriaFewestTotal struct {
 // other actors, the score is returned.
 //
 // Parameters:
-//   - s *GameState: The current state of the game containing actor data and vegetable counts.
+//   - s *GameHostState: The current state of the game containing actor data and vegetable counts.
 //   - actorId int: The ID of the actor whose score is being calculated.
 //
 // Returns:
 //   - int: The calculated score for the actor, which is 0 if any other actor has an equal or fewer total vegetable count,
 //     otherwise it returns the score associated with this criterion.
-func (c *CriteriaFewestTotal) calculateScore(s *GameState, actorId int) int {
+func (c *CriteriaFewestTotal) calculateScore(s *GameHostState, actorId int) int {
 	vegCount := 0
 	for _, count := range s.actorData[actorId].vegetableNum {
 		vegCount += count
@@ -381,13 +381,13 @@ type CriteriaPerTypeGreaterThanEq struct {
 // the score is increased by the given score value (c.score) for each such vegetable type.
 //
 // Parameters:
-//   - s *GameState: The current state of the game containing actor data and vegetable counts.
+//   - s *GameHostState: The current state of the game containing actor data and vegetable counts.
 //   - actorId int: The ID of the actor whose score is being calculated.
 //
 // Returns:
 //   - int: The calculated score, which is the sum of the score values for each vegetable type where the actor's count
 //     is greater than or equal to the threshold (c.greaterThanEq).
-func (c *CriteriaPerTypeGreaterThanEq) calculateScore(s *GameState, actorId int) int {
+func (c *CriteriaPerTypeGreaterThanEq) calculateScore(s *GameHostState, actorId int) int {
 	score := 0
 	for _, count := range s.actorData[actorId].vegetableNum {
 		if count >= c.greaterThanEq {
@@ -399,7 +399,7 @@ func (c *CriteriaPerTypeGreaterThanEq) calculateScore(s *GameState, actorId int)
 
 // String returns a string representation of the CriteriaPerTypeGreaterThanEq object, indicating the threshold for each
 // vegetable type and the associated score. The format is: "<vegetable type> / VEGETABLE TYPE >=<threshold>"
-// 
+//
 // Returns:
 //   - string: The string representation of the criteria in the format:
 //     "<vegetable type> / VEGETABLE TYPE >=<threshold>"
@@ -416,12 +416,12 @@ type CriteriaPerMissingType struct {
 // by the specified score value (c.score) for each missing vegetable type.
 //
 // Parameters:
-//   - s *GameState: The current state of the game containing actor data and vegetable counts.
+//   - s *GameHostState: The current state of the game containing actor data and vegetable counts.
 //   - actorId int: The ID of the actor whose score is being calculated.
 //
 // Returns:
 //   - int: The calculated score, which is the sum of the score values for each vegetable type the actor is missing (count == 0).
-func (c *CriteriaPerMissingType) calculateScore(s *GameState, actorId int) int {
+func (c *CriteriaPerMissingType) calculateScore(s *GameHostState, actorId int) int {
 	score := 0
 	for _, count := range s.actorData[actorId].vegetableNum {
 		if count == 0 {
@@ -450,13 +450,13 @@ type CriteriaCompleteSet struct {
 // by the given score value (c.score). If the actor has a low count in one type, that number limits the total score.
 //
 // Parameters:
-//   - s *GameState: The current state of the game containing actor data and vegetable counts.
+//   - s *GameHostState: The current state of the game containing actor data and vegetable counts.
 //   - actorId int: The ID of the actor whose score is being calculated.
 //
 // Returns:
 //   - int: The calculated score, which is the product of the score value and the minimum vegetable count the actor has
 //     for any vegetable type. If the actor has fewer of any vegetable type, that count limits the score.
-func (c *CriteriaCompleteSet) calculateScore(s *GameState, actorId int) int {
+func (c *CriteriaCompleteSet) calculateScore(s *GameHostState, actorId int) int {
 	min := s.actorData[actorId].vegetableNum[0]
 	for _, count := range s.actorData[actorId].vegetableNum {
 		if count < min {

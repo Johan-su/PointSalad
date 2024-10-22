@@ -1,8 +1,8 @@
 package pointsalad
 
 import (
-	"strings"
 	"fmt"
+	"strings"
 )
 
 type CardSpot struct {

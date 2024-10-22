@@ -7,7 +7,6 @@ import (
 	"log"
 )
 
-
 func main() {
 
 	var isServer bool
@@ -25,28 +24,30 @@ func main() {
 
 	log.Printf("isServer = %v, hostname = %v port = %v playerNum = %v botNum = %v\n", isServer, hostname, port, playerNum, botNum)
 
-	server, client := network.CreateTCPServerClient()
-
-	game := game.CreatePointSalad()
 	if isServer {
+		host := game.CreatePointSaladHost()
+		host.Init(playerNum, botNum)
 
-		game.Init(playerNum, botNum)
-
-		err := server.Init(port, playerNum, game.GetMaxHostDataSize())
+		server := network.CreateTCPServer()
+		err := server.Init(port, playerNum, host.GetMaxHostDataSize())
 		if err != nil {
 			log.Fatalf("%s\n", err)
 		}
 
-		game.RunHost(server.GetReadChannels(), server.GetWriteChannels())
+		host.RunHost(server.GetReadChannels(), server.GetWriteChannels())
 		server.Close()
 
 	} else {
+		player := game.CreatePointSaladPlayer()
+		player.Init()
 
-		err := client.Connect(hostname, port, game.GetMaxPlayerDataSize())
+		client := network.CreateTCPClient()
+		err := client.Connect(hostname, port, player.GetMaxPlayerDataSize())
 		if err != nil {
 			log.Fatalf("%s\n", err)
 		}
-		game.RunPlayer(client.GetReadChannel(), client.GetWriteChannel())
+
+		player.RunPlayer(client.GetReadChannel(), client.GetWriteChannel())
 		client.Close()
 	}
 }

@@ -20,9 +20,9 @@ type Client struct {
 	clientMaxReceiveSize int
 }
 
-// Connect establishes a TCP connection to the specified host and port, 
-// performs a ping-pong test to verify the connection, and initializes 
-// channels for reading and writing data. The function also starts two 
+// Connect establishes a TCP connection to the specified host and port,
+// performs a ping-pong test to verify the connection, and initializes
+// channels for reading and writing data. The function also starts two
 // goroutines for handling reading and writing concurrently.
 //
 // Parameters:
@@ -64,12 +64,12 @@ func (c *Client) Connect(hostname string, port string, clientMaxReceiveSize int)
 	return nil
 }
 
-// Close terminates the client's connection by closing the TCP connection, 
-// and sends signals to stop the reading and writing goroutines. It logs 
+// Close terminates the client's connection by closing the TCP connection,
+// and sends signals to stop the reading and writing goroutines. It logs
 // the closure of the client connection.
 //
-// This function gracefully shuts down the client by ensuring that the 
-// connection is properly closed and that no further read/write operations 
+// This function gracefully shuts down the client by ensuring that the
+// connection is properly closed and that no further read/write operations
 // are attempted.
 //
 // Returns:
@@ -179,8 +179,8 @@ type Server struct {
 // - serverMaxReceiveSize: The maximum size for receiving data from clients.
 //
 // Returns:
-// - error: Returns an error if there is an issue during the server setup or client connections,
-//          or nil if the server was successfully initialized and is accepting connections.
+//   - error: Returns an error if there is an issue during the server setup or client connections,
+//     or nil if the server was successfully initialized and is accepting connections.
 func (server *Server) Init(port string, playerNum int, serverMaxReceiveSize int) error {
 	server.serverMaxReceiveSize = serverMaxReceiveSize
 	log.Printf("listening on port %v\n", port)
@@ -259,8 +259,8 @@ func (s *Server) Close() {
 // from the clients.
 //
 // Returns:
-// - map[int]chan []byte: A map of read channels, where the key is the client ID and the value
-//   is the read channel for that client.
+//   - map[int]chan []byte: A map of read channels, where the key is the client ID and the value
+//     is the read channel for that client.
 func (s *Server) GetReadChannels() map[int]chan []byte {
 	return s.in
 }
@@ -270,8 +270,8 @@ func (s *Server) GetReadChannels() map[int]chan []byte {
 // write channels.
 //
 // Returns:
-// - map[int]chan []byte: A map of write channels, where the key is the client ID and the value
-//   is the write channel for that client.
+//   - map[int]chan []byte: A map of write channels, where the key is the client ID and the value
+//     is the write channel for that client.
 func (s *Server) GetWriteChannels() map[int]chan []byte {
 	return s.out
 }

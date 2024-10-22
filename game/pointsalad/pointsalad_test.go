@@ -162,7 +162,7 @@ func TestCriteriaParsing(t *testing.T) {
 
 // ---- Requirement 1 ----
 func correctPlayerAmount(t *testing.T, expected bool, playerNum int, botNum int) {
-	_, err := createGameState(&jsonCards, playerNum, botNum, 0)
+	_, err := createGameHostState(&jsonCards, playerNum, botNum, 0)
 	value := err == nil
 	if expected != value {
 		t.Errorf("Expected %v got %v with %v %v\n", expected, value, playerNum, botNum)
@@ -217,9 +217,9 @@ func TestCardAmount(t *testing.T) {
 // ---- Requirement 3 ----
 
 func CorrectVegetableAmount(t *testing.T, actorNum int, expectedNumOfVegetablePerType int) {
-	s, err := createGameState(&jsonCards, 0, actorNum, 0)
+	s, err := createGameHostState(&jsonCards, 0, actorNum, 0)
 	if err != nil {
-		t.Fatalf("Failed to create GameState")
+		t.Fatalf("Failed to create GameHostState")
 	}
 
 	vegetableNums := [vegetableTypeNum]int{}
@@ -233,7 +233,7 @@ func CorrectVegetableAmount(t *testing.T, actorNum int, expectedNumOfVegetablePe
 						continue
 					}
 					if card.criteria == other_card.criteria && card.vegType == other_card.vegType {
-						t.Errorf("vegetable with vegType %v, criteria %v", card.vegType, card.criteria.String())
+						t.Errorf("multiple vegetables with vegType %v, criteria %v", card.vegType, card.criteria.String())
 					}
 				}
 			}
@@ -268,9 +268,9 @@ func TestCorrectVegetables(t *testing.T) {
 
 func TestCreate3DrawPiles(t *testing.T) {
 	initJson()
-	s, err := createGameState(&jsonCards, 0, 2, 0)
+	s, err := createGameHostState(&jsonCards, 0, 2, 0)
 	if err != nil {
-		t.Fatalf("Failed to create GameState")
+		t.Fatalf("Failed to create GameHostState")
 	}
 	pileAmount := 3
 	if len(s.market.piles) != pileAmount {
@@ -288,9 +288,9 @@ func TestCreate3DrawPiles(t *testing.T) {
 
 func TestCardFlipping(t *testing.T) {
 	initJson()
-	s, err := createGameState(&jsonCards, 0, 2, 0)
+	s, err := createGameHostState(&jsonCards, 0, 2, 0)
 	if err != nil {
-		t.Fatalf("Failed to create GameState")
+		t.Fatalf("Failed to create GameHostState")
 	}
 
 	for i := range s.market.cardSpots {
@@ -331,9 +331,9 @@ func TestRandomStartingPlayer(t *testing.T) {
 	testAmount := 10000
 
 	for i := range testAmount {
-		s, err := createGameState(&jsonCards, 0, 6, int64(i))
+		s, err := createGameHostState(&jsonCards, 0, 6, int64(i))
 		if err != nil {
-			t.Fatalf("Failed to create GameState")
+			t.Fatalf("Failed to create GameHostState")
 		}
 		startingPlayerIdsAmount[s.activeActor] += 1
 	}
@@ -352,9 +352,9 @@ func TestPlayerOptions(t *testing.T) {
 	initJson()
 	// drawing vegetables
 	{
-		host, err := createGameState(&jsonCards, 1, 1, 0)
+		host, err := createGameHostState(&jsonCards, 1, 1, 0)
 		if err != nil {
-			t.Fatalf("Failed to create GameState")
+			t.Fatalf("Failed to create GameHostState")
 		}
 		host.activeActor = 0
 		hostRead := make(map[int]chan []byte)
@@ -385,9 +385,9 @@ func TestPlayerOptions(t *testing.T) {
 
 	// drawing point card, and swapping
 	{
-		host, err := createGameState(&jsonCards, 1, 1, 0)
+		host, err := createGameHostState(&jsonCards, 1, 1, 0)
 		if err != nil {
-			t.Fatalf("Failed to create GameState")
+			t.Fatalf("Failed to create GameHostState")
 		}
 		host.activeActor = 0
 		hostRead := make(map[int]chan []byte)
@@ -415,9 +415,9 @@ func TestShowHandToOtherPlayers(t *testing.T) {
 	initJson()
 	// only works with 2 for now
 	playerAmount := 2
-	host, err := createGameState(&jsonCards, playerAmount, 0, 0)
+	host, err := createGameHostState(&jsonCards, playerAmount, 0, 0)
 	if err != nil {
-		t.Fatalf("Failed to create GameState")
+		t.Fatalf("Failed to create GameHostState")
 	}
 	host.activeActor = 0
 
@@ -460,9 +460,9 @@ func TestShowHandToOtherPlayers(t *testing.T) {
 
 func TestCardReplace(t *testing.T) {
 	initJson()
-	s, err := createGameState(&jsonCards, 0, 2, 0)
+	s, err := createGameHostState(&jsonCards, 0, 2, 0)
 	if err != nil {
-		t.Fatalf("Failed to create GameState")
+		t.Fatalf("Failed to create GameHostState")
 	}
 
 	p := s.market.piles[0]
@@ -494,9 +494,9 @@ func TestCardReplace(t *testing.T) {
 // ---- Requirement 11 ----
 func TestSwitchingDrawPile(t *testing.T) {
 	initJson()
-	s, err := createGameState(&jsonCards, 0, 2, 0)
+	s, err := createGameHostState(&jsonCards, 0, 2, 0)
 	if err != nil {
-		t.Fatalf("Failed to create GameState")
+		t.Fatalf("Failed to create GameHostState")
 	}
 
 	s.market.piles[0] = s.market.piles[0][:1]
@@ -530,9 +530,9 @@ func TestSwitchingDrawPile(t *testing.T) {
 // ---- Requirement 12 & 14 ----
 func TestWinWhenEmpty(t *testing.T) {
 	initJson()
-	s, err := createGameState(&jsonCards, 0, 2, 0)
+	s, err := createGameHostState(&jsonCards, 0, 2, 0)
 	if err != nil {
-		t.Fatalf("Failed to create GameState")
+		t.Fatalf("Failed to create GameHostState")
 	}
 
 	hostWrite := make(map[int]chan []byte)
@@ -573,9 +573,9 @@ func TestWinWhenEmpty(t *testing.T) {
 // ---- Requirement 13 ----
 
 func CorrectCalculateScore(t *testing.T, expected_score int, vegetableNum [vegetableTypeNum]int, card_strs []string) {
-	s, err := createGameState(&jsonCards, 0, 2, 0)
+	s, err := createGameHostState(&jsonCards, 0, 2, 0)
 	if err != nil {
-		t.Fatalf("Failed to create GameState")
+		t.Fatalf("Failed to create GameHostState")
 	}
 	s.actorData[0].vegetableNum = vegetableNum
 	for _, str := range card_strs {
