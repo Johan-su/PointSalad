@@ -339,6 +339,11 @@ func hasWon(state *GameHostState) bool {
 			return false
 		}
 	}
+	for i := range state.market.cardSpots {
+		if hasCard(&state.market, i) {
+			return false
+		}
+	}
 	return true
 }
 
